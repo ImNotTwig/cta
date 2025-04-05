@@ -36,8 +36,26 @@ impl Queue<'static> {
         }
     }
 
+    pub fn pos(&self) -> usize {
+        self.pos
+    }
+
     pub fn drop(self) {
         std::mem::drop(self);
+    }
+
+    pub async fn get_tracklist(&self) -> Vec<String> {
+        async fn run(mut yt: YoutubeDl<'static>) -> String {
+            let meta = yt.aux_metadata().await.expect("no metadata");
+            return format!(
+                "'{} - {}'",
+                meta.title.unwrap_or(String::from("UNKNOWN")),
+                meta.artist.unwrap_or(String::from("UNKNOWN"))
+            );
+        }
+
+        let futs = self.songs.clone().into_iter().map(|x| run(x));
+        futures::future::join_all(futs).await
     }
 
     pub async fn current_track_over(&self) -> anyhow::Result<bool> {
@@ -119,15 +137,15 @@ impl Queue<'static> {
                 if let Some(tc) = self.text_channel {
                     let content = format!(
                         "Now playing: {} - {}.",
-                        meta.title.unwrap(),
-                        meta.artist.unwrap()
+                        meta.track.unwrap_or(String::from("UNKNOWN")),
+                        meta.artist.unwrap_or(String::from("UNKNOWN")),
                     );
 
                     http.create_message(tc).content(&content).await?;
                 }
 
                 if let Some(track) = self.current_track.as_mut() {
-                    track.stop()?;
+                    let _ = track.stop();
                 }
                 self.current_track = Some(handle);
 
@@ -171,7 +189,7 @@ impl Queue<'static> {
                 }
 
                 if let Some(track) = self.current_track.as_mut() {
-                    track.stop()?;
+                    let _ = track.stop();
                 }
                 self.current_track = Some(handle);
 

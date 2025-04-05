@@ -1,15 +1,17 @@
 #![feature(pattern)]
 #![feature(random)]
+#![feature(duration_constants)]
 
+use core::time;
 use std::{collections::HashMap, env, future::Future, str::pattern::Pattern, sync::Arc};
 
-use commands::{join, jump, leave, next, pause, ping, play, prev, unpause};
 use music::Queue;
 use parser::{Argument, ArgumentMetadata, Command, CommandWithData, TextCommand};
 
 use reqwest::Client;
 use songbird::{shards::TwilightMap, Songbird};
 use tokio::sync::RwLock;
+use twilight_cache_inmemory::{CacheableCurrentUser, DefaultInMemoryCache, InMemoryCache};
 use twilight_gateway::{Event, EventTypeFlags, Intents, Shard, ShardId, StreamExt};
 use twilight_http::Client as HttpClient;
 use twilight_model::{
@@ -18,6 +20,7 @@ use twilight_model::{
 };
 
 mod commands;
+mod config;
 mod music;
 mod parser;
 
@@ -27,6 +30,7 @@ struct State<'a> {
     pub songbird: Songbird,
     pub vcs: RwLock<HashMap<Id<GuildMarker>, Queue<'a>>>,
     pub client: Client,
+    pub cache: InMemoryCache,
 }
 impl State<'static> {
     pub fn new(
@@ -35,6 +39,7 @@ impl State<'static> {
         songbird: Songbird,
         vcs: RwLock<HashMap<Id<GuildMarker>, Queue<'static>>>,
         client: Client,
+        cache: InMemoryCache,
     ) -> State<'static> {
         State {
             root_cmd,
@@ -42,6 +47,7 @@ impl State<'static> {
             songbird,
             vcs,
             client,
+            cache,
         }
     }
 }
@@ -52,58 +58,14 @@ async fn main() -> anyhow::Result<()> {
 
     let token = &env::var("TOKEN")?;
 
-    let root_cmd = Command::new(
-        String::from("cta"),
-        None,
-        &[
-            Command::new(
-                String::from("ping"),
-                Some(ping),
-                &[],
-                &[Argument::String(ArgumentMetadata {
-                    label: String::from("text"),
-                    size: 0,
-                })],
-            ),
-            Command::new(
-                String::from("jump"),
-                Some(jump),
-                &[],
-                &[Argument::UInt(ArgumentMetadata {
-                    label: String::from("amount"),
-                    size: 1,
-                })],
-            ),
-            Command::new(String::from("join"), Some(join), &[], &[]),
-            Command::new(String::from("leave"), Some(leave), &[], &[]),
-            Command::new(String::from("pause"), Some(pause), &[], &[]),
-            Command::new(String::from("unpause"), Some(unpause), &[], &[]),
-            Command::new(
-                String::from("play"),
-                Some(play),
-                &[],
-                &[Argument::String(ArgumentMetadata {
-                    label: String::from("song"),
-                    size: 0,
-                })],
-            ),
-            Command::new(String::from("next"), Some(next), &[], &[]),
-            Command::new(String::from("prev"), Some(prev), &[], &[]),
-        ],
-        &[],
-    );
+    let cache = DefaultInMemoryCache::builder()
+        .message_cache_size(10)
+        .build();
 
     let http = HttpClient::new(String::from(token));
     let user = http.current_user().await?.model().await?;
 
-    let shard = Shard::new(
-        ShardId::ONE,
-        String::from(token),
-        Intents::GUILD_MESSAGES
-            | Intents::MESSAGE_CONTENT
-            | Intents::GUILD_MESSAGE_REACTIONS
-            | Intents::GUILD_VOICE_STATES,
-    );
+    let shard = Shard::new(ShardId::ONE, String::from(token), Intents::all());
 
     let shards: Vec<Shard> = vec![shard];
 
@@ -117,11 +79,12 @@ async fn main() -> anyhow::Result<()> {
     let songbird = Songbird::twilight(Arc::new(senders), user.id);
 
     let state = Arc::new(State::new(
-        root_cmd,
+        commands::rootcmd(),
         http,
         songbird,
         RwLock::new(HashMap::new()),
         Client::new(),
+        cache,
     ));
 
     tracing::info!("Logged in as: {}", user.name);
@@ -135,6 +98,48 @@ async fn main() -> anyhow::Result<()> {
     set.join_next().await;
 
     Ok(())
+}
+
+async fn leave_empty_vcs(state: Arc<State<'static>>) {
+    loop {
+        let mut guilds = vec![];
+        for i in state.vcs.read().await.iter() {
+            let vc = state
+                .songbird
+                .get(*i.0)
+                .unwrap()
+                .lock()
+                .await
+                .current_channel()
+                .unwrap()
+                .0
+                .into();
+
+            let member_count = state
+                .cache
+                .voice_channel_states(vc)
+                .map(|voice_states| {
+                    let mut users = voice_states
+                        .map(|v| state.cache.user(v.user_id()))
+                        .collect::<Option<Vec<_>>>()
+                        .unwrap();
+                    users.retain(|u| !u.bot);
+                    users.len()
+                })
+                .unwrap();
+
+            if member_count == 0 {
+                guilds.push(i.0.clone());
+            }
+        }
+        for guild in guilds {
+            state.songbird.leave(guild).await.unwrap();
+            let mut vcs = state.vcs.write().await;
+            if let Some(vc) = vcs.remove(&guild) {
+                vc.drop();
+            }
+        }
+    }
 }
 
 async fn check_done_vcs(state: Arc<State<'static>>) {
@@ -178,6 +183,7 @@ async fn runner(mut shard: Shard, state: Arc<State<'static>>) {
                 async move { handle_event(s, event).await }
             });
         };
+        tokio::spawn(leave_empty_vcs(Arc::clone(&state)));
     }
 }
 
@@ -191,6 +197,7 @@ fn spawn(fut: impl Future<Output = anyhow::Result<()>> + Send + 'static) {
 
 async fn handle_event(state: Arc<State<'static>>, event: Event) -> anyhow::Result<()> {
     state.songbird.process(&event).await;
+    state.cache.update(&event);
 
     match event {
         //TODO: unhardcode the prefix
@@ -232,7 +239,7 @@ async fn handle_event(state: Arc<State<'static>>, event: Event) -> anyhow::Resul
             EmojiReactionType::Unicode { name } => {
                 if name == "⭐" {
                     if let Some(member) = &reaction.member {
-                        tracing::info!("{}", member.user.name);
+                        // tracing::info!("{}", member.user.name);
                     }
                 }
             }
