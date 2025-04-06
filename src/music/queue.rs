@@ -82,16 +82,12 @@ impl Queue<'static> {
             })
             .collect();
 
-        let mut results = vec![{}; futures.len()];
+        let mut results = vec![String::new(); futures.len()];
         for future in futures {
             let (index, res) = future.await.unwrap();
-            results[index] = Some(res);
+            results[index] = res;
         }
-        results
-            .into_iter()
-            .filter(|x| x.is_some())
-            .map(Option::unwrap)
-            .collect()
+        results.into_iter().collect()
     }
 
     pub async fn current_track_over(&self) -> anyhow::Result<bool> {
