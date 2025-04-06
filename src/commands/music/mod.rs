@@ -15,4 +15,6 @@ pub use play::play;
 pub use skip::next;
 pub use skip::prev;
 
+pub use queue::insert;
 pub use queue::queue;
+pub use queue::remove;

@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin};
 
 use twilight_model::{
     channel::message::AllowedMentions, gateway::payload::incoming::MessageCreate,
@@ -6,11 +6,7 @@ use twilight_model::{
 
 use crate::{parser::CommandWithData, State};
 
-async fn ping_impl(
-    s: Arc<State<'static>>,
-    m: MessageCreate,
-    c: CommandWithData,
-) -> anyhow::Result<()> {
+async fn ping_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Result<()> {
     let current_time = std::time::SystemTime::now()
         .duration_since(std::time::SystemTime::UNIX_EPOCH)
         .expect("time travel???????????????????????????")
@@ -35,7 +31,7 @@ async fn ping_impl(
     Ok(())
 }
 pub fn ping(
-    s: Arc<State<'static>>,
+    s: State,
     m: MessageCreate,
     c: CommandWithData,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>> {

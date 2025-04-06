@@ -2,7 +2,6 @@ use std::{
     future::Future,
     pin::Pin,
     random::{DefaultRandomSource, Random},
-    sync::Arc,
 };
 
 use twilight_model::{
@@ -11,11 +10,7 @@ use twilight_model::{
 
 use crate::{parser::CommandWithData, State};
 
-async fn jump_impl(
-    s: Arc<State<'static>>,
-    m: MessageCreate,
-    c: CommandWithData,
-) -> anyhow::Result<()> {
+async fn jump_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Result<()> {
     let mut amount = 1;
     if let Some(args) = c.arguments {
         if args.len() > 0 {
@@ -24,7 +19,7 @@ async fn jump_impl(
     };
 
     if amount <= 10 {
-        for i in 0..amount {
+        for _ in 0..amount {
             let res = bool::random(&mut DefaultRandomSource);
             let content = if res {
                 "YOU MADE THE JUMP!!! YOURE SO AWESOME. HERE'S THE BEEF."
@@ -49,7 +44,7 @@ async fn jump_impl(
     Ok(())
 }
 pub fn jump(
-    s: Arc<State<'static>>,
+    s: State,
     m: MessageCreate,
     c: CommandWithData,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>> {

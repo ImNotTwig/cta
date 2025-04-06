@@ -9,13 +9,13 @@ use twilight_model::id::{
 type OptionId<T> = Option<Id<T>>;
 type OptionMap<K, V> = Option<HashMap<K, V>>;
 
-struct Reminder {
+pub struct Reminder {
     pub begin: Duration,
     pub end: Duration,
     pub message: String,
 }
 
-struct ChannelSet {
+pub struct ChannelSet {
     pub log: OptionId<ChannelMarker>,
     pub spam: OptionId<ChannelMarker>,
 

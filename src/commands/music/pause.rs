@@ -1,14 +1,10 @@
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin};
 
 use twilight_model::gateway::payload::incoming::MessageCreate;
 
 use crate::{parser::CommandWithData, State};
 
-async fn unpause_impl(
-    s: Arc<State<'static>>,
-    m: MessageCreate,
-    c: CommandWithData,
-) -> anyhow::Result<()> {
+async fn unpause_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
     let mut lock = s.vcs.write().await;
 
     if let Some(queue) = lock.get_mut(&m.guild_id.unwrap()) {
@@ -19,18 +15,14 @@ async fn unpause_impl(
 }
 
 pub fn unpause(
-    s: Arc<State<'static>>,
+    s: State,
     m: MessageCreate,
     c: CommandWithData,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>> {
     return (move |sc, mc, cc| Box::pin(unpause_impl(sc, mc, cc)))(s, m, c);
 }
 
-async fn pause_impl(
-    s: Arc<State<'static>>,
-    m: MessageCreate,
-    c: CommandWithData,
-) -> anyhow::Result<()> {
+async fn pause_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Result<()> {
     let mut lock = s.vcs.write().await;
 
     if let Some(queue) = lock.get_mut(&m.guild_id.unwrap()) {
@@ -41,7 +33,7 @@ async fn pause_impl(
 }
 
 pub fn pause(
-    s: Arc<State<'static>>,
+    s: State,
     m: MessageCreate,
     c: CommandWithData,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>> {

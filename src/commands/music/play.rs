@@ -1,15 +1,11 @@
 use songbird::input::{Compose, YoutubeDl};
 
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin};
 use twilight_model::gateway::payload::incoming::MessageCreate;
 
 use crate::{music::Queue, parser::CommandWithData, State};
 
-async fn play_impl(
-    s: Arc<State<'static>>,
-    m: MessageCreate,
-    c: CommandWithData,
-) -> anyhow::Result<()> {
+async fn play_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Result<()> {
     let guild_id = m
         .guild_id
         .expect("Cannot use the play command outside of a guild.");
@@ -47,16 +43,18 @@ async fn play_impl(
     };
 
     let mut lock = s.vcs.write().await;
-    if lock.get(&guild_id).is_none() {
+    let queue_len = if let Some(queue) = lock.get_mut(&guild_id) {
+        queue.push(src);
+        queue.len()
+    } else {
         lock.insert(
             guild_id,
             Queue::new(None, None, Some(m.channel_id), vec![src]),
         );
-    } else {
-        lock.get_mut(&guild_id).unwrap().push(src);
-    }
+        1
+    };
 
-    if lock.len() == 1 {
+    if queue_len == 1 {
         lock.get_mut(&guild_id)
             .unwrap()
             .play(&s.songbird, &s.http, guild_id)
@@ -64,8 +62,8 @@ async fn play_impl(
     } else {
         let content = format!(
             "Added: '{} - {}' to Queue",
+            meta.artist.unwrap(),
             meta.title.unwrap(),
-            meta.artist.unwrap()
         );
 
         s.http
@@ -77,7 +75,7 @@ async fn play_impl(
     Ok(())
 }
 pub fn play(
-    s: Arc<State<'static>>,
+    s: State,
     m: MessageCreate,
     c: CommandWithData,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>> {

@@ -5,6 +5,7 @@ use songbird::{
     tracks::TrackHandle,
     Songbird,
 };
+use tokio::sync::MutexGuard;
 use twilight_http::Client as HttpClient;
 use twilight_model::id::{
     marker::{ChannelMarker, GuildMarker},
@@ -36,6 +37,29 @@ impl Queue<'static> {
         }
     }
 
+    pub async fn format_song(mut yt: YoutubeDl<'static>) -> String {
+        let meta = yt.aux_metadata().await.expect("no metadata");
+        return format!(
+            "'{} - {}'",
+            meta.artist.unwrap_or(String::from("UNKNOWN")),
+            meta.title.unwrap_or(String::from("UNKNOWN")),
+        );
+    }
+
+    async fn set_current_track(
+        &mut self,
+        src: &mut YoutubeDl<'static>,
+        call: &mut MutexGuard<'_, songbird::Call>,
+    ) -> anyhow::Result<()> {
+        self.current_track_len = src.aux_metadata().await?.duration;
+        self.current_track = Some(call.play_input(src.clone().into()));
+        Ok(())
+    }
+
+    pub fn len(&self) -> usize {
+        self.songs.len()
+    }
+
     pub fn pos(&self) -> usize {
         self.pos
     }
@@ -45,17 +69,29 @@ impl Queue<'static> {
     }
 
     pub async fn get_tracklist(&self) -> Vec<String> {
-        async fn run(mut yt: YoutubeDl<'static>) -> String {
-            let meta = yt.aux_metadata().await.expect("no metadata");
-            return format!(
-                "'{} - {}'",
-                meta.title.unwrap_or(String::from("UNKNOWN")),
-                meta.artist.unwrap_or(String::from("UNKNOWN"))
-            );
-        }
+        let futures: Vec<_> = self
+            .songs
+            .clone()
+            .into_iter()
+            .enumerate()
+            .map(|(i, yt)| {
+                tokio::task::spawn(async move {
+                    let res = Queue::format_song(yt).await;
+                    (i, res)
+                })
+            })
+            .collect();
 
-        let futs = self.songs.clone().into_iter().map(|x| run(x));
-        futures::future::join_all(futs).await
+        let mut results = vec![{}; futures.len()];
+        for future in futures {
+            let (index, res) = future.await.unwrap();
+            results[index] = Some(res);
+        }
+        results
+            .into_iter()
+            .filter(|x| x.is_some())
+            .map(Option::unwrap)
+            .collect()
     }
 
     pub async fn current_track_over(&self) -> anyhow::Result<bool> {
@@ -73,29 +109,22 @@ impl Queue<'static> {
     ) -> anyhow::Result<()> {
         if let Some(call_lock) = songbird.get(guild_id) {
             let mut call = call_lock.lock().await;
-            self.current_track = Some(call.play_input(self.songs[self.pos].clone().into()));
-
             let mut src = self.songs[self.pos].clone();
 
-            if let Ok(meta) = src.aux_metadata().await {
-                self.current_track_len = if let Ok(meta) = src.aux_metadata().await {
-                    meta.duration
-                } else {
-                    None
-                };
+            self.stop(&mut call);
+            self.set_current_track(&mut src, &mut call).await?;
 
-                if let Some(tc) = self.text_channel {
-                    let content = format!(
-                        "Now playing: {} - {}.",
-                        meta.title.unwrap(),
-                        meta.artist.unwrap()
-                    );
-
-                    http.create_message(tc).content(&content).await?;
-                }
+            if let Some(tc) = self.text_channel {
+                http.create_message(tc)
+                    .content(&format!("Now playing: {}.", Queue::format_song(src).await))
+                    .await?;
             }
         }
         Ok(())
+    }
+
+    pub fn stop(&mut self, call: &mut MutexGuard<'_, songbird::Call>) {
+        // call.stop();
     }
 
     pub async fn unpause(&mut self) -> anyhow::Result<()> {
@@ -112,95 +141,50 @@ impl Queue<'static> {
         Ok(())
     }
 
+    pub async fn remove(
+        &mut self,
+        songbird: &Songbird,
+        http: &HttpClient,
+        guild_id: Id<GuildMarker>,
+        index: usize,
+    ) -> anyhow::Result<()> {
+        tracing::info!("{}:{}", index, self.pos);
+        if index >= self.songs.len() {
+            return Ok(());
+        } else if index < self.pos {
+            self.pos -= 1;
+        }
+        self.songs.remove(index);
+        if index == self.pos {
+            self.play(songbird, http, guild_id).await?;
+        }
+        Ok(())
+    }
+
+    pub fn insert(&mut self, song: YoutubeDl<'static>, index: usize) {
+        if index < self.pos {
+            self.pos += 1;
+        }
+        if index >= self.songs.len() {
+            self.songs.push(song);
+        } else {
+            self.songs.insert(index, song);
+        }
+    }
+
     pub fn push(&mut self, song: YoutubeDl<'static>) {
         self.songs.push(song);
     }
 
-    pub async fn prev(
+    pub async fn goto(
         &mut self,
         songbird: &Songbird,
         http: &HttpClient,
         guild_id: Id<GuildMarker>,
+        pos: usize,
     ) -> anyhow::Result<()> {
-        if self.pos as i32 - 1 < 0 {
-            return Ok(());
-        }
-        self.pos -= 1;
-
-        let mut src = self.songs[self.pos].clone();
-
-        if let Some(call_lock) = songbird.get(guild_id) {
-            let mut call = call_lock.lock().await;
-            let handle = call.play_input(src.clone().into());
-
-            if let Ok(meta) = src.aux_metadata().await {
-                if let Some(tc) = self.text_channel {
-                    let content = format!(
-                        "Now playing: {} - {}.",
-                        meta.track.unwrap_or(String::from("UNKNOWN")),
-                        meta.artist.unwrap_or(String::from("UNKNOWN")),
-                    );
-
-                    http.create_message(tc).content(&content).await?;
-                }
-
-                if let Some(track) = self.current_track.as_mut() {
-                    let _ = track.stop();
-                }
-                self.current_track = Some(handle);
-
-                self.current_track_len = if let Ok(meta) = src.aux_metadata().await {
-                    meta.duration
-                } else {
-                    None
-                };
-            }
-        }
-
-        Ok(())
-    }
-
-    pub async fn next(
-        &mut self,
-        songbird: &Songbird,
-        http: &HttpClient,
-        guild_id: Id<GuildMarker>,
-    ) -> anyhow::Result<()> {
-        if self.pos + 1 >= self.songs.len() {
-            return Ok(());
-        }
-        self.pos += 1;
-
-        let mut src = self.songs[self.pos].clone();
-
-        if let Some(call_lock) = songbird.get(guild_id) {
-            let mut call = call_lock.lock().await;
-            let handle = call.play_input(src.clone().into());
-
-            if let Ok(meta) = src.aux_metadata().await {
-                if let Some(tc) = self.text_channel {
-                    let content = format!(
-                        "Now playing: {} - {}.",
-                        meta.title.unwrap(),
-                        meta.artist.unwrap()
-                    );
-
-                    http.create_message(tc).content(&content).await?;
-                }
-
-                if let Some(track) = self.current_track.as_mut() {
-                    let _ = track.stop();
-                }
-                self.current_track = Some(handle);
-
-                self.current_track_len = if let Ok(meta) = src.aux_metadata().await {
-                    meta.duration
-                } else {
-                    None
-                };
-            }
-        }
-
+        self.pos = pos;
+        self.play(songbird, http, guild_id).await?;
         Ok(())
     }
 }

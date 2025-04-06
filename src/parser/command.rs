@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin};
 
 use twilight_model::gateway::payload::incoming::MessageCreate;
 
@@ -68,25 +68,24 @@ impl CommandWithData {
                     } else {
                         match argument {
                             Argument::String(_) => {
-                                if let Some(arg) = t.clone().next() {
-                                    collected_args
-                                        .push(ArgumentWithData::String(t.clone().next().unwrap()));
+                                if let Some(arg) = t.next() {
+                                    collected_args.push(ArgumentWithData::String(arg));
                                 }
                             }
                             Argument::Int(_) => {
-                                if let Some(arg) = t.clone().next() {
+                                if let Some(arg) = t.next() {
                                     collected_args
                                         .push(ArgumentWithData::Int(arg.parse().unwrap()));
                                 }
                             }
                             Argument::UInt(_) => {
-                                if let Some(arg) = t.clone().next() {
+                                if let Some(arg) = t.next() {
                                     collected_args
                                         .push(ArgumentWithData::UInt(arg.parse().unwrap()));
                                 }
                             }
                             Argument::Bool(_) => {
-                                if let Some(arg) = t.clone().next() {
+                                if let Some(arg) = t.next() {
                                     collected_args
                                         .push(ArgumentWithData::Bool(arg.parse().unwrap()));
                                 }
@@ -105,9 +104,8 @@ impl CommandWithData {
 #[derive(Clone)]
 pub struct Command {
     pub name: String,
-    pub function: Option<
-        fn(Arc<State<'static>>, MessageCreate, CommandWithData) -> BoxFuture<anyhow::Result<()>>,
-    >,
+    pub function:
+        Option<fn(State, MessageCreate, CommandWithData) -> BoxFuture<anyhow::Result<()>>>,
     pub subcommands: Option<Box<[Command]>>,
     pub arguments: Option<Box<[Argument]>>,
 }
@@ -116,11 +114,7 @@ impl Command {
     pub fn new(
         name: String,
         function: Option<
-            fn(
-                Arc<State<'static>>,
-                MessageCreate,
-                CommandWithData,
-            ) -> BoxFuture<anyhow::Result<()>>,
+            fn(State, MessageCreate, CommandWithData) -> BoxFuture<anyhow::Result<()>>,
         >,
         subcommands: &[Command],
         arguments: &[Argument],

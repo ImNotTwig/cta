@@ -21,7 +21,9 @@ pub use music::play;
 pub use music::pause;
 pub use music::unpause;
 
+pub use music::insert;
 pub use music::queue;
+pub use music::remove;
 
 pub fn rootcmd() -> Command {
     Command::new(
@@ -62,6 +64,30 @@ pub fn rootcmd() -> Command {
             Command::new(String::from("next"), Some(next), &[], &[]),
             Command::new(String::from("prev"), Some(prev), &[], &[]),
             Command::new(String::from("queue"), Some(queue), &[], &[]),
+            Command::new(
+                String::from("remove"),
+                Some(remove),
+                &[],
+                &[Argument::UInt(ArgumentMetadata {
+                    label: String::from("index"),
+                    size: 1,
+                })],
+            ),
+            Command::new(
+                String::from("insert"),
+                Some(insert),
+                &[],
+                &[
+                    Argument::UInt(ArgumentMetadata {
+                        label: String::from("index"),
+                        size: 1,
+                    }),
+                    Argument::String(ArgumentMetadata {
+                        label: String::from("song"),
+                        size: 0,
+                    }),
+                ],
+            ),
         ],
         &[],
     )

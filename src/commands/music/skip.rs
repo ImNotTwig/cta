@@ -1,19 +1,18 @@
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin};
 
 use twilight_model::gateway::payload::incoming::MessageCreate;
 
 use crate::{parser::CommandWithData, State};
 
-async fn next_impl(
-    s: Arc<State<'static>>,
-    m: MessageCreate,
-    c: CommandWithData,
-) -> anyhow::Result<()> {
+async fn next_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
     let mut lock = s.vcs.write().await;
 
     if let Some(queue) = lock.get_mut(&m.guild_id.unwrap()) {
+        if queue.pos() >= queue.len() - 1 {
+            return Ok(());
+        }
         queue
-            .next(&s.songbird, &s.http, m.guild_id.unwrap())
+            .goto(&s.songbird, &s.http, m.guild_id.unwrap(), queue.pos() + 1)
             .await?;
     }
 
@@ -21,23 +20,22 @@ async fn next_impl(
 }
 
 pub fn next(
-    s: Arc<State<'static>>,
+    s: State,
     m: MessageCreate,
     c: CommandWithData,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>> {
     return (move |sc, mc, cc| Box::pin(next_impl(sc, mc, cc)))(s, m, c);
 }
 
-async fn prev_impl(
-    s: Arc<State<'static>>,
-    m: MessageCreate,
-    c: CommandWithData,
-) -> anyhow::Result<()> {
+async fn prev_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
     let mut lock = s.vcs.write().await;
 
     if let Some(queue) = lock.get_mut(&m.guild_id.unwrap()) {
+        if queue.pos() == 0 {
+            return Ok(());
+        }
         queue
-            .prev(&s.songbird, &s.http, m.guild_id.unwrap())
+            .goto(&s.songbird, &s.http, m.guild_id.unwrap(), queue.pos() - 1)
             .await?;
     }
 
@@ -45,7 +43,7 @@ async fn prev_impl(
 }
 
 pub fn prev(
-    s: Arc<State<'static>>,
+    s: State,
     m: MessageCreate,
     c: CommandWithData,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>> {

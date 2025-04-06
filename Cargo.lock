@@ -426,7 +426,6 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
- "futures",
  "reqwest 0.12.15",
  "songbird",
  "symphonia",

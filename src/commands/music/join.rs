@@ -1,4 +1,4 @@
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin};
 
 use twilight_model::{
     channel::message::AllowedMentions, gateway::payload::incoming::MessageCreate,
@@ -6,11 +6,7 @@ use twilight_model::{
 
 use crate::{music::Queue, parser::CommandWithData, State};
 
-async fn join_impl(
-    s: Arc<State<'static>>,
-    m: MessageCreate,
-    c: CommandWithData,
-) -> anyhow::Result<()> {
+async fn join_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
     let vc = s
         .http
         .user_voice_state(m.guild_id.unwrap(), m.author.id)
@@ -39,18 +35,14 @@ async fn join_impl(
     Ok(())
 }
 pub fn join(
-    s: Arc<State<'static>>,
+    s: State,
     m: MessageCreate,
     c: CommandWithData,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>> {
     return (move |sc, mc, cc| Box::pin(join_impl(sc, mc, cc)))(s, m, c);
 }
 
-async fn leave_impl(
-    s: Arc<State<'static>>,
-    m: MessageCreate,
-    c: CommandWithData,
-) -> anyhow::Result<()> {
+async fn leave_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Result<()> {
     if let Some(call_lock) = s.songbird.get(m.guild_id.unwrap()) {
         let mut call = call_lock.lock().await;
 
@@ -92,7 +84,7 @@ async fn leave_impl(
     Ok(())
 }
 pub fn leave(
-    s: Arc<State<'static>>,
+    s: State,
     m: MessageCreate,
     c: CommandWithData,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>> {
