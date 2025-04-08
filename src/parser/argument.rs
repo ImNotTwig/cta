@@ -6,28 +6,37 @@ pub enum ArgumentWithData {
     Bool(bool),
 }
 impl ArgumentWithData {
-    pub fn string(self) -> String {
+    pub fn new(arg: &Argument, val: String) -> anyhow::Result<Self> {
+        Ok(match arg {
+            Argument::String(_) => Self::String(val),
+            Argument::UInt(_) => Self::UInt(val.parse()?),
+            Argument::Int(_) => Self::Int(val.parse()?),
+            Argument::Bool(_) => Self::Bool(val.parse()?),
+        })
+    }
+
+    pub fn string(&self) -> Option<String> {
         match self {
-            Self::String(d) => d,
-            _ => unreachable!(),
+            Self::String(d) => Some(d.clone()),
+            _ => None,
         }
     }
-    pub fn uint(self) -> u32 {
+    pub fn uint(&self) -> Option<u32> {
         match self {
-            Self::UInt(d) => d,
-            _ => unreachable!(),
+            Self::UInt(d) => Some(*d),
+            _ => None,
         }
     }
-    pub fn int(self) -> i32 {
+    pub fn int(&self) -> Option<i32> {
         match self {
-            Self::Int(d) => d,
-            _ => unreachable!(),
+            Self::Int(d) => Some(*d),
+            _ => None,
         }
     }
-    pub fn bool(self) -> bool {
+    pub fn bool(&self) -> Option<bool> {
         match self {
-            Self::Bool(d) => d,
-            _ => unreachable!(),
+            Self::Bool(d) => Some(*d),
+            _ => None,
         }
     }
 }
@@ -49,18 +58,16 @@ pub enum Argument {
 impl Argument {
     pub fn label(self: Argument) -> String {
         match self {
-            Argument::String(d) => d.label,
-            Argument::UInt(d) => d.label,
-            Argument::Int(d) => d.label,
-            Argument::Bool(d) => d.label,
+            Argument::String(d) | Argument::UInt(d) | Argument::Int(d) | Argument::Bool(d) => {
+                d.label
+            }
         }
     }
     pub fn size(self: Argument) -> u32 {
         match self {
-            Argument::String(d) => d.size,
-            Argument::UInt(d) => d.size,
-            Argument::Int(d) => d.size,
-            Argument::Bool(d) => d.size,
+            Argument::String(d) | Argument::UInt(d) | Argument::Int(d) | Argument::Bool(d) => {
+                d.size
+            }
         }
     }
 }

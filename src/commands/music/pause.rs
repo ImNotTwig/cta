@@ -5,10 +5,10 @@ use twilight_model::gateway::payload::incoming::MessageCreate;
 use crate::{parser::CommandWithData, State};
 
 async fn unpause_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
-    let mut lock = s.vcs.write().await;
-
-    if let Some(queue) = lock.get_mut(&m.guild_id.unwrap()) {
-        queue.unpause().await?;
+    let lock = s.vcs.read().await.clone();
+    if let Some(queue_lock) = lock.get(&m.guild_id.unwrap()) {
+        let queue = queue_lock.lock().await;
+        queue.unpause()?;
     }
 
     Ok(())
@@ -22,11 +22,11 @@ pub fn unpause(
     return (move |sc, mc, cc| Box::pin(unpause_impl(sc, mc, cc)))(s, m, c);
 }
 
-async fn pause_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Result<()> {
-    let mut lock = s.vcs.write().await;
-
-    if let Some(queue) = lock.get_mut(&m.guild_id.unwrap()) {
-        queue.pause().await?;
+async fn pause_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
+    let vcs = s.vcs.read().await.clone();
+    if let Some(queue_lock) = vcs.get(&m.guild_id.unwrap()) {
+        let queue = queue_lock.lock().await;
+        queue.pause()?;
     }
 
     Ok(())

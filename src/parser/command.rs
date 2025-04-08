@@ -16,88 +16,37 @@ pub struct CommandWithData {
 }
 
 impl CommandWithData {
-    pub fn new(mut t: TextCommand, c: Command) -> CommandWithData {
-        CommandWithData {
+    pub fn new(mut t: TextCommand, c: Command) -> anyhow::Result<CommandWithData> {
+        Ok(CommandWithData {
             name: c.name,
-            subcommand: if let Some(subcommands) = c.subcommands {
+            subcommand: c.subcommands.and_then(|subcommands| {
                 let mut res = None;
                 for subcommand in subcommands {
                     if let Some(word) = t.next() {
                         if subcommand.name == word {
-                            res = Some(Box::new(CommandWithData::new(t.clone(), subcommand)));
+                            res = Some(Box::new(CommandWithData::new(t.clone(), subcommand).ok()?));
                             break;
                         }
                     }
                 }
                 res
-            } else {
-                None
-            },
-            arguments: if let Some(arguments) = c.arguments {
+            }),
+            arguments: c.arguments.and_then(|arguments| {
                 let mut collected_args: Vec<ArgumentWithData> = vec![];
                 for argument in arguments {
                     if argument.clone().size() == 0 {
-                        match argument {
-                            Argument::String(_) => {
-                                collected_args.push(ArgumentWithData::String(
-                                    t.clone().collect::<Vec<String>>().join(" "),
-                                ));
-                            }
-                            Argument::UInt(_) => {
-                                let uints =
-                                    t.clone().map(|x| x.parse().unwrap()).collect::<Vec<u32>>();
-                                for uint in uints {
-                                    collected_args.push(ArgumentWithData::UInt(uint));
-                                }
-                            }
-                            Argument::Int(_) => {
-                                let ints =
-                                    t.clone().map(|x| x.parse().unwrap()).collect::<Vec<i32>>();
-                                for int in ints {
-                                    collected_args.push(ArgumentWithData::Int(int));
-                                }
-                            }
-                            Argument::Bool(_) => {
-                                let bools =
-                                    t.clone().map(|x| x.parse().unwrap()).collect::<Vec<bool>>();
-                                for bool in bools {
-                                    collected_args.push(ArgumentWithData::Bool(bool));
-                                }
-                            }
+                        for arg in t.clone().into_iter() {
+                            collected_args.push(ArgumentWithData::new(&argument, arg).ok()?);
                         }
                     } else {
-                        match argument {
-                            Argument::String(_) => {
-                                if let Some(arg) = t.next() {
-                                    collected_args.push(ArgumentWithData::String(arg));
-                                }
-                            }
-                            Argument::Int(_) => {
-                                if let Some(arg) = t.next() {
-                                    collected_args
-                                        .push(ArgumentWithData::Int(arg.parse().unwrap()));
-                                }
-                            }
-                            Argument::UInt(_) => {
-                                if let Some(arg) = t.next() {
-                                    collected_args
-                                        .push(ArgumentWithData::UInt(arg.parse().unwrap()));
-                                }
-                            }
-                            Argument::Bool(_) => {
-                                if let Some(arg) = t.next() {
-                                    collected_args
-                                        .push(ArgumentWithData::Bool(arg.parse().unwrap()));
-                                }
-                            }
+                        if let Some(arg) = t.next() {
+                            collected_args.push(ArgumentWithData::new(&argument, arg).ok()?);
                         }
                     }
                 }
                 Some(collected_args.into())
-            } else {
-                None
-            },
-        }
+            }),
+        })
     }
 }
 
@@ -116,25 +65,25 @@ impl Command {
         function: Option<
             fn(State, MessageCreate, CommandWithData) -> BoxFuture<anyhow::Result<()>>,
         >,
-        subcommands: &[Command],
+        subcommands: &[Self],
         arguments: &[Argument],
-    ) -> Command {
-        return Command {
+    ) -> Self {
+        Self {
             name,
             function,
             subcommands: Some(subcommands.into()),
             arguments: Some(arguments.into()),
-        };
+        }
     }
 
-    pub fn find_command(self: Command, command: &str) -> Option<Box<Command>> {
+    pub fn find_command(self: Self, command: &str) -> Option<Box<Self>> {
         if let Some(sc) = &self.subcommands {
             for c in sc {
                 if c.name == command {
                     return Some(Box::new((*c).clone()));
                 }
             }
-        };
-        return None;
+        }
+        None
     }
 }

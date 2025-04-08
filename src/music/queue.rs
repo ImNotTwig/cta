@@ -1,16 +1,16 @@
 use std::time::Duration;
 
 use songbird::{
-    input::{Compose, YoutubeDl},
+    input::{AuxMetadata, Compose, YoutubeDl},
     tracks::TrackHandle,
-    Songbird,
 };
 use tokio::sync::MutexGuard;
-use twilight_http::Client as HttpClient;
 use twilight_model::id::{
     marker::{ChannelMarker, GuildMarker},
     Id,
 };
+
+use crate::state::State;
 
 #[derive(Clone)]
 pub struct Queue<'a> {
@@ -22,16 +22,15 @@ pub struct Queue<'a> {
 }
 
 impl Queue<'static> {
-    pub fn new(
+    pub const fn new(
         track: Option<TrackHandle>,
         track_len: Option<Duration>,
         text_channel: Option<Id<ChannelMarker>>,
-        songs: Vec<YoutubeDl<'static>>,
-    ) -> Queue<'static> {
+    ) -> Self {
         Queue {
             current_track: track,
             current_track_len: track_len,
-            songs,
+            songs: vec![],
             pos: 0,
             text_channel,
         }
@@ -39,11 +38,11 @@ impl Queue<'static> {
 
     pub async fn format_song(mut yt: YoutubeDl<'static>) -> String {
         let meta = yt.aux_metadata().await.expect("no metadata");
-        return format!(
+        format!(
             "'{} - {}'",
-            meta.artist.unwrap_or(String::from("UNKNOWN")),
-            meta.title.unwrap_or(String::from("UNKNOWN")),
-        );
+            meta.artist.unwrap_or_else(|| String::from("UNKNOWN")),
+            meta.title.unwrap_or_else(|| String::from("UNKNOWN")),
+        )
     }
 
     async fn set_current_track(
@@ -56,38 +55,26 @@ impl Queue<'static> {
         Ok(())
     }
 
-    pub fn len(&self) -> usize {
+    pub const fn len(&self) -> usize {
         self.songs.len()
     }
 
-    pub fn pos(&self) -> usize {
+    pub const fn pos(&self) -> usize {
         self.pos
     }
 
-    pub fn drop(self) {
-        std::mem::drop(self);
-    }
-
     pub async fn get_tracklist(&self) -> Vec<String> {
-        let futures: Vec<_> = self
-            .songs
-            .clone()
-            .into_iter()
-            .enumerate()
-            .map(|(i, yt)| {
-                tokio::task::spawn(async move {
-                    let res = Queue::format_song(yt).await;
-                    (i, res)
-                })
-            })
-            .collect();
-
-        let mut results = vec![String::new(); futures.len()];
-        for future in futures {
-            let (index, res) = future.await.unwrap();
-            results[index] = res;
+        let mut set = tokio::task::JoinSet::new();
+        for (index, song) in self.songs.clone().into_iter().enumerate() {
+            set.spawn(async move {
+                let res = Queue::format_song(song).await;
+                (index, res)
+            });
         }
-        results.into_iter().collect()
+
+        let mut results = set.join_all().await;
+        results.sort_unstable_by(|x, y| x.0.cmp(&y.0));
+        results.iter().map(|x| x.clone().1).collect()
     }
 
     pub async fn current_track_over(&self) -> anyhow::Result<bool> {
@@ -97,13 +84,8 @@ impl Queue<'static> {
         Ok(false)
     }
 
-    pub async fn play(
-        &mut self,
-        songbird: &Songbird,
-        http: &HttpClient,
-        guild_id: Id<GuildMarker>,
-    ) -> anyhow::Result<()> {
-        if let Some(call_lock) = songbird.get(guild_id) {
+    pub async fn play(&mut self, state: State, guild_id: Id<GuildMarker>) -> anyhow::Result<()> {
+        if let Some(call_lock) = state.songbird.get(guild_id) {
             let mut call = call_lock.lock().await;
             let mut src = self.songs[self.pos].clone();
 
@@ -111,7 +93,9 @@ impl Queue<'static> {
             self.set_current_track(&mut src, &mut call).await?;
 
             if let Some(tc) = self.text_channel {
-                http.create_message(tc)
+                state
+                    .http
+                    .create_message(tc)
                     .content(&format!("Now playing: {}.", Queue::format_song(src).await))
                     .await?;
             }
@@ -119,18 +103,18 @@ impl Queue<'static> {
         Ok(())
     }
 
-    pub fn stop(&mut self, call: &mut MutexGuard<'_, songbird::Call>) {
-        // call.stop();
+    pub fn stop(&self, call: &mut MutexGuard<'_, songbird::Call>) {
+        call.stop();
     }
 
-    pub async fn unpause(&mut self) -> anyhow::Result<()> {
+    pub fn unpause(&self) -> anyhow::Result<()> {
         if let Some(track) = &self.current_track {
             track.play()?;
         }
         Ok(())
     }
 
-    pub async fn pause(&mut self) -> anyhow::Result<()> {
+    pub fn pause(&self) -> anyhow::Result<()> {
         if let Some(track) = &self.current_track {
             track.pause()?;
         }
@@ -139,8 +123,7 @@ impl Queue<'static> {
 
     pub async fn remove(
         &mut self,
-        songbird: &Songbird,
-        http: &HttpClient,
+        state: State,
         guild_id: Id<GuildMarker>,
         index: usize,
     ) -> anyhow::Result<()> {
@@ -152,7 +135,7 @@ impl Queue<'static> {
         }
         self.songs.remove(index);
         if index == self.pos {
-            self.play(songbird, http, guild_id).await?;
+            self.play(state, guild_id).await?;
         }
         Ok(())
     }
@@ -168,19 +151,28 @@ impl Queue<'static> {
         }
     }
 
-    pub fn push(&mut self, song: YoutubeDl<'static>) {
-        self.songs.push(song);
+    pub async fn push(&mut self, state: State, url: String) -> anyhow::Result<AuxMetadata> {
+        let mut src = YoutubeDl::new(state.client.clone(), url.clone());
+        let metadata = match src.aux_metadata().await {
+            Ok(meta) => meta,
+            Err(_) => {
+                src = YoutubeDl::new_search(state.client.clone(), url.clone());
+                src.aux_metadata().await?
+            }
+        };
+
+        self.songs.push(src);
+        Ok(metadata)
     }
 
     pub async fn goto(
         &mut self,
-        songbird: &Songbird,
-        http: &HttpClient,
+        state: State,
         guild_id: Id<GuildMarker>,
         pos: usize,
     ) -> anyhow::Result<()> {
         self.pos = pos;
-        self.play(songbird, http, guild_id).await?;
+        self.play(state, guild_id).await?;
         Ok(())
     }
 }

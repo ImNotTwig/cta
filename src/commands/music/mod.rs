@@ -16,5 +16,6 @@ pub use skip::next;
 pub use skip::prev;
 
 pub use queue::insert;
+pub use queue::playnext;
 pub use queue::queue;
 pub use queue::remove;

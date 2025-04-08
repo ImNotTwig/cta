@@ -12,20 +12,20 @@ async fn ping_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Re
         .expect("time travel???????????????????????????")
         .as_secs();
 
-    let mut content;
+    let mut content = None;
     if let Some(args) = c.arguments {
-        content = args[0].clone().string();
-        if content == "" {
-            content = String::from("pong!");
+        if !args.is_empty() {
+            content = args[0].string();
         }
-    } else {
-        content = String::from("pong!");
-    };
+    }
 
     s.http
         .create_message(m.channel_id)
         .allowed_mentions(Some(&AllowedMentions::default()))
-        .content(&format!("{content} - processed <t:{current_time}:R>"))
+        .content(&format!(
+            "{} - processed <t:{current_time}:R>",
+            content.unwrap_or_else(|| String::from("Pong!"))
+        ))
         .reply(m.id)
         .await?;
     Ok(())
@@ -35,5 +35,5 @@ pub fn ping(
     m: MessageCreate,
     c: CommandWithData,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>> {
-    return (move |sc, mc, cc| Box::pin(ping_impl(sc, mc, cc)))(s, m, c);
+    Box::pin(ping_impl(s, m, c))
 }

@@ -1,6 +1,5 @@
-use songbird::input::{Compose, YoutubeDl};
-
-use std::{future::Future, pin::Pin};
+use std::{future::Future, pin::Pin, sync::Arc};
+use tokio::sync::Mutex;
 use twilight_model::gateway::payload::incoming::MessageCreate;
 
 use crate::{music::Queue, parser::CommandWithData, State};
@@ -10,20 +9,17 @@ async fn play_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Re
         .guild_id
         .expect("Cannot use the play command outside of a guild.");
 
-    let mut url;
+    let mut url = None;
     if let Some(args) = c.arguments {
-        url = args[0].clone().string();
-        if url == "" {
-            url = String::new();
+        if !args.is_empty() {
+            url = args[0].clone().string();
         }
-    } else {
-        url = String::new();
-    };
+    }
 
     if s.songbird.get(guild_id).is_none() {
         let vc = s
             .http
-            .user_voice_state(m.guild_id.unwrap(), m.author.id)
+            .user_voice_state(guild_id, m.author.id)
             .await?
             .model()
             .await?
@@ -33,44 +29,33 @@ async fn play_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Re
         s.songbird.join(guild_id, vc).await?;
     }
 
-    let mut src = YoutubeDl::new(s.client.clone(), url.clone());
-    let meta = match src.aux_metadata().await {
-        Ok(meta) => meta,
-        Err(_) => {
-            src = YoutubeDl::new_search(s.client.clone(), url.clone());
-            src.aux_metadata().await?
-        }
-    };
-
     let mut lock = s.vcs.write().await;
-    let queue_len = if let Some(queue) = lock.get_mut(&guild_id) {
-        queue.push(src);
-        queue.len()
+    if let Some(queue_lock) = lock.get_mut(&guild_id) {
+        let mut queue = queue_lock.lock().await;
+        if let Some(u) = url {
+            let meta = queue.push(Arc::clone(&s), u).await?;
+
+            let content = format!(
+                "Added: '{} - {}' to Queue",
+                meta.artist.unwrap(),
+                meta.title.unwrap(),
+            );
+
+            s.http
+                .create_message(m.channel_id)
+                .content(&content)
+                .await?;
+        }
     } else {
         lock.insert(
             guild_id,
-            Queue::new(None, None, Some(m.channel_id), vec![src]),
+            Arc::new(Mutex::new(Queue::new(None, None, Some(m.channel_id)))),
         );
-        1
+        let queue_lock = lock.get_mut(&guild_id).unwrap();
+        let mut queue = queue_lock.lock().await;
+        _ = queue.push(Arc::clone(&s), url.unwrap()).await?;
+        queue.play(Arc::clone(&s), guild_id).await?;
     };
-
-    if queue_len == 1 {
-        lock.get_mut(&guild_id)
-            .unwrap()
-            .play(&s.songbird, &s.http, guild_id)
-            .await?;
-    } else {
-        let content = format!(
-            "Added: '{} - {}' to Queue",
-            meta.artist.unwrap(),
-            meta.title.unwrap(),
-        );
-
-        s.http
-            .create_message(m.channel_id)
-            .content(&content)
-            .await?;
-    }
 
     Ok(())
 }

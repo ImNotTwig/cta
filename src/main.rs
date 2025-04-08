@@ -81,13 +81,13 @@ async fn runner(mut shard: Shard, s: State) -> anyhow::Result<()> {
                 let s = Arc::clone(&s);
                 async move {
                     match s.handle_event(event).await {
-                        Ok(_) => {}
+                        Ok(()) => {}
                         Err(why) => {
                             tracing::debug!("Error processing event: {why}.");
                         }
-                    };
+                    }
                 }
             });
-        };
+        }
     }
 }

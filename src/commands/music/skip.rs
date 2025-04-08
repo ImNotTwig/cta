@@ -1,18 +1,22 @@
-use std::{future::Future, pin::Pin};
+use std::{future::Future, pin::Pin, sync::Arc};
 
 use twilight_model::gateway::payload::incoming::MessageCreate;
 
 use crate::{parser::CommandWithData, State};
 
 async fn next_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
-    let mut lock = s.vcs.write().await;
+    let mut lock = s.vcs.write().await.clone();
 
-    if let Some(queue) = lock.get_mut(&m.guild_id.unwrap()) {
-        if queue.pos() >= queue.len() - 1 {
+    if let Some(queue_lock) = lock.get_mut(&m.guild_id.unwrap()) {
+        let mut queue = queue_lock.lock().await;
+        let pos = queue.pos();
+        if pos + 1 >= queue.len() {
+            let call_lock = s.songbird.get(m.guild_id.unwrap()).unwrap();
+            queue.stop(&mut call_lock.lock().await);
             return Ok(());
         }
         queue
-            .goto(&s.songbird, &s.http, m.guild_id.unwrap(), queue.pos() + 1)
+            .goto(Arc::clone(&s), m.guild_id.unwrap(), pos + 1)
             .await?;
     }
 
@@ -28,14 +32,16 @@ pub fn next(
 }
 
 async fn prev_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
-    let mut lock = s.vcs.write().await;
+    let mut lock = s.vcs.write().await.clone();
 
-    if let Some(queue) = lock.get_mut(&m.guild_id.unwrap()) {
-        if queue.pos() == 0 {
+    if let Some(queue_lock) = lock.get_mut(&m.guild_id.unwrap()) {
+        let mut queue = queue_lock.lock().await;
+        let pos = queue.pos();
+        if pos == 0 {
             return Ok(());
         }
         queue
-            .goto(&s.songbird, &s.http, m.guild_id.unwrap(), queue.pos() - 1)
+            .goto(Arc::clone(&s), m.guild_id.unwrap(), pos - 1)
             .await?;
     }
 

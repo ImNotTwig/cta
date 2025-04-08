@@ -1,5 +1,6 @@
-use std::{future::Future, pin::Pin};
+use std::{future::Future, pin::Pin, sync::Arc};
 
+use tokio::sync::Mutex;
 use twilight_model::{
     channel::message::AllowedMentions, gateway::payload::incoming::MessageCreate,
 };
@@ -17,12 +18,11 @@ async fn join_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::R
         .unwrap();
 
     s.songbird.join(m.guild_id.unwrap(), vc).await?;
-    println!("songbird joined");
     let mut lock = s.vcs.write().await;
     if lock.get(&m.guild_id.unwrap()).is_none() {
         lock.insert(
             m.guild_id.unwrap(),
-            Queue::new(None, None, Some(m.channel_id), vec![]),
+            Arc::new(Mutex::new(Queue::new(None, None, Some(m.channel_id)))),
         );
     }
 
@@ -42,7 +42,7 @@ pub fn join(
     return (move |sc, mc, cc| Box::pin(join_impl(sc, mc, cc)))(s, m, c);
 }
 
-async fn leave_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Result<()> {
+async fn leave_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
     if let Some(call_lock) = s.songbird.get(m.guild_id.unwrap()) {
         let mut call = call_lock.lock().await;
 
@@ -57,11 +57,9 @@ async fn leave_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::R
                 .unwrap();
 
             call.leave().await?;
-            let mut lock = s.vcs.write().await;
 
-            if let Some(queue) = lock.remove(&m.guild_id.unwrap()) {
-                queue.drop();
-            }
+            let mut lock = s.vcs.write().await;
+            lock.remove(&m.guild_id.unwrap()).unwrap();
 
             if channel == vc.into() {
                 s.http

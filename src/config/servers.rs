@@ -22,7 +22,7 @@ pub struct ChannelSet {
     pub significant_reactions: OptionMap<Id<EmojiMarker>, Id<ChannelMarker>>,
 }
 
-/// ServerConfig represents the configuration for any given Discord guild, and contains many settings
+/// `ServerConfig` represents the configuration for any given Discord guild, and contains many settings
 /// which an admin may configure.
 /// NOTE: Any value that is None disables related behaviors
 /// i.e: if `significant_reaction_count` is None then this bot will never post significant reactions,
@@ -47,6 +47,6 @@ pub struct ServerConfig {
 
 impl ServerConfig {
     pub fn prefix(&self) -> String {
-        self.prefix.clone().unwrap_or(String::from("~"))
+        self.prefix.clone().unwrap_or_else(|| String::from("~"))
     }
 }

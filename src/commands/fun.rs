@@ -13,8 +13,8 @@ use crate::{parser::CommandWithData, State};
 async fn jump_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Result<()> {
     let mut amount = 1;
     if let Some(args) = c.arguments {
-        if args.len() > 0 {
-            amount = args[0].clone().uint();
+        if !args.is_empty() {
+            amount = args[0].clone().uint().unwrap_or(1);
         }
     };
 

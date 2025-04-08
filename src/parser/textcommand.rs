@@ -15,7 +15,7 @@ impl<'a> TextCommand<'a> {
         self.words[0]
     }
 }
-impl<'a> Iterator for TextCommand<'a> {
+impl Iterator for TextCommand<'_> {
     type Item = String;
 
     fn next(&mut self) -> Option<String> {
