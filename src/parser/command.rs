@@ -76,7 +76,7 @@ impl Command {
         }
     }
 
-    pub fn find_command(self: Self, command: &str) -> Option<Box<Self>> {
+    pub fn find_command(&self, command: &str) -> Option<Box<Self>> {
         if let Some(sc) = &self.subcommands {
             for c in sc {
                 if c.name == command {

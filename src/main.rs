@@ -49,10 +49,11 @@ async fn main() -> anyhow::Result<()> {
         http,
         songbird,
         RwLock::new(HashMap::new()),
+        RwLock::new(HashMap::new()),
         Client::new(),
         cache,
     ));
-
+    Arc::clone(&s).generate_configs().await?;
     tracing::info!("Logged in as: {}", user.name);
 
     let mut set = tokio::task::JoinSet::new();

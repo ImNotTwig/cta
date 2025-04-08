@@ -12,14 +12,20 @@ use twilight_model::{
 };
 
 use crate::{
+    config::servers::ServerConfig,
     music::Queue,
     parser::{Command, CommandWithData, TextCommand},
 };
 
 pub trait Handler {
     async fn handle_event(self, event: Event) -> anyhow::Result<()>;
+
     async fn leave_empty_vcs(self) -> anyhow::Result<()>;
     async fn check_done_vcs(self) -> anyhow::Result<()>;
+
+    async fn generate_configs(self) -> anyhow::Result<()>;
+    async fn write_configs_to_file(&self) -> anyhow::Result<()>;
+    async fn read_configs_from_file(&self) -> anyhow::Result<()>;
 }
 
 pub struct StateRef<'a> {
@@ -27,6 +33,7 @@ pub struct StateRef<'a> {
     pub http: HttpClient,
     pub songbird: Songbird,
     pub vcs: RwLock<HashMap<Id<GuildMarker>, Arc<Mutex<Queue<'a>>>>>,
+    pub server_configs: RwLock<HashMap<Id<GuildMarker>, ServerConfig>>,
     pub client: Client,
     pub cache: InMemoryCache,
 }
@@ -61,6 +68,34 @@ async fn get_empty_vcs(state: State) -> Vec<Id<GuildMarker>> {
 }
 
 impl Handler for State {
+    async fn generate_configs(self) -> anyhow::Result<()> {
+        let guilds = self.http.current_user_guilds().await?.model().await?;
+        let configs = self.server_configs.read().await.clone();
+        for guild in guilds {
+            if configs.get(&guild.id).is_none() {
+                _ = self
+                    .server_configs
+                    .write()
+                    .await
+                    .insert(guild.id, ServerConfig::new());
+            }
+        }
+        Ok(())
+    }
+
+    async fn write_configs_to_file(&self) -> anyhow::Result<()> {
+        let configs = self.server_configs.read().await.clone();
+        for (guild, config) in configs.iter() {
+            let data = bincode::serde::encode_to_vec(config, bincode::config::standard())?;
+            println!("{} : {:?}", guild, String::from_utf8(data)?);
+        }
+        Ok(())
+    }
+
+    async fn read_configs_from_file(&self) -> anyhow::Result<()> {
+        Ok(())
+    }
+
     async fn leave_empty_vcs(self) -> anyhow::Result<()> {
         loop {
             let guilds = get_empty_vcs(Arc::clone(&self)).await;
@@ -116,22 +151,21 @@ impl Handler for State {
                 if txt_cmd.clone().collect::<Vec<String>>().is_empty() {
                     return Ok(());
                 }
-                if "".is_prefix_of(txt_cmd.first()) {
-                    if let Some(subcommand) = self.root_cmd.clone().find_command(
-                        txt_cmd
-                            .clone()
-                            .first()
-                            .strip_prefix("~")
-                            .unwrap_or_else(|| txt_cmd.first()),
-                    ) {
-                        if let Some(func) = subcommand.function {
-                            _ = txt_cmd.next();
-                            let command_with_data = CommandWithData::new(txt_cmd, *subcommand)?;
-                            _ = tokio::spawn(async move {
-                                (func)(Arc::clone(&self), *msg.clone(), command_with_data)
-                                    .await
-                                    .unwrap();
-                            });
+                let configs = self.server_configs.read().await.clone();
+                let pfx = configs.get(&msg.guild_id.unwrap()).unwrap().prefix();
+
+                if pfx.is_prefix_of(txt_cmd.first()) {
+                    if let Some(prefix_commmand) = txt_cmd.first().strip_prefix(&pfx) {
+                        if let Some(subcommand) = self.root_cmd.find_command(prefix_commmand) {
+                            if let Some(func) = subcommand.function {
+                                _ = txt_cmd.next();
+                                let command_with_data = CommandWithData::new(txt_cmd, *subcommand)?;
+                                _ = tokio::spawn(async move {
+                                    (func)(Arc::clone(&self), *msg.clone(), command_with_data)
+                                        .await
+                                        .unwrap();
+                                });
+                            }
                         }
                     }
                 }
@@ -166,6 +200,7 @@ impl StateRef<'static> {
         http: HttpClient,
         songbird: Songbird,
         vcs: RwLock<HashMap<Id<GuildMarker>, Arc<Mutex<Queue<'static>>>>>,
+        server_configs: RwLock<HashMap<Id<GuildMarker>, ServerConfig>>,
         client: Client,
         cache: InMemoryCache,
     ) -> Self {
@@ -174,6 +209,7 @@ impl StateRef<'static> {
             http,
             songbird,
             vcs,
+            server_configs,
             client,
             cache,
         }

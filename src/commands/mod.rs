@@ -1,3 +1,4 @@
+mod config;
 mod fun;
 mod music;
 mod utility;
@@ -9,6 +10,8 @@ use crate::parser::Command;
 pub use fun::jump;
 
 pub use utility::ping;
+
+pub use config::prefix;
 
 pub use music::join;
 pub use music::leave;
@@ -46,6 +49,15 @@ pub fn rootcmd() -> Command {
                 &[],
                 &[Argument::UInt(ArgumentMetadata {
                     label: String::from("amount"),
+                    size: 1,
+                })],
+            ),
+            Command::new(
+                String::from("prefix"),
+                Some(prefix),
+                &[],
+                &[Argument::String(ArgumentMetadata {
+                    label: String::from("new prefix"),
                     size: 1,
                 })],
             ),

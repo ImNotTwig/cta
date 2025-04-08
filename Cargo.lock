@@ -427,6 +427,7 @@ dependencies = [
  "anyhow",
  "bincode",
  "reqwest 0.12.15",
+ "serde",
  "songbird",
  "symphonia",
  "tokio",

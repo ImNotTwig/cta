@@ -1,6 +1,7 @@
 use std::{collections::HashMap, time::Duration};
 
-use bincode::{config, Decode, Encode};
+use serde::{Deserialize, Serialize};
+
 use twilight_model::id::{
     marker::{ChannelMarker, EmojiMarker, MessageMarker, RoleMarker, UserMarker},
     Id,
@@ -9,12 +10,14 @@ use twilight_model::id::{
 type OptionId<T> = Option<Id<T>>;
 type OptionMap<K, V> = Option<HashMap<K, V>>;
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct Reminder {
     pub begin: Duration,
     pub end: Duration,
     pub message: String,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ChannelSet {
     pub log: OptionId<ChannelMarker>,
     pub spam: OptionId<ChannelMarker>,
@@ -26,7 +29,8 @@ pub struct ChannelSet {
 /// which an admin may configure.
 /// NOTE: Any value that is None disables related behaviors
 /// i.e: if `significant_reaction_count` is None then this bot will never post significant reactions,
-/// The same applies if `significant_reaction_channel` is None.
+/// The same applies if `channels.significant_reactions` is None.
+#[derive(Clone, Serialize, Deserialize)]
 pub struct ServerConfig {
     prefix: Option<String>,
 
@@ -46,7 +50,29 @@ pub struct ServerConfig {
 }
 
 impl ServerConfig {
+    pub const fn new() -> Self {
+        Self {
+            prefix: None,
+            channels: ChannelSet {
+                log: None,
+                spam: None,
+                significant_reactions: None,
+            },
+            reaction_roles: None,
+            reminders: None,
+            mute_role: None,
+            blacklisted_words: None,
+            auto_responses: None,
+            auto_reacts: None,
+            significant_reaction_count: None,
+        }
+    }
+
     pub fn prefix(&self) -> String {
         self.prefix.clone().unwrap_or_else(|| String::from("~"))
+    }
+
+    pub fn set_prefix(&mut self, pfx: &str) {
+        self.prefix = Some(String::from(pfx));
     }
 }
