@@ -29,7 +29,7 @@ async fn play_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Re
         s.songbird.join(guild_id, vc).await?;
     }
 
-    let mut lock = s.vcs.write().await;
+    let mut lock = s.vcs.lock().await;
     if let Some(queue_lock) = lock.get_mut(&guild_id) {
         let mut queue = queue_lock.lock().await;
         if let Some(u) = url {

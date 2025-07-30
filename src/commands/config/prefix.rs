@@ -15,7 +15,7 @@ async fn prefix_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::
     }
 
     if let Some(pfx) = maybe_pfx {
-        let mut configs = s.server_configs.write().await;
+        let mut configs = s.server_configs.lock().await;
         if let Some(config) = configs.get_mut(&m.guild_id.unwrap()) {
             config.set_prefix(&pfx);
 

@@ -8,7 +8,7 @@ use twilight_model::{
 use crate::{music::Queue, parser::CommandWithData, State};
 
 async fn queue_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
-    let vcs = s.vcs.read().await.clone();
+    let vcs = s.vcs.lock().await.clone();
     if let Some(queue_lock) = vcs.get(&m.guild_id.unwrap()) {
         let queue = queue_lock.lock().await;
         let content = queue.get_tracklist().await;
@@ -46,7 +46,7 @@ pub fn queue(
 }
 
 async fn remove_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Result<()> {
-    let mut vcs = s.vcs.write().await.clone();
+    let mut vcs = s.vcs.lock().await.clone();
     if let Some(queue_lock) = vcs.get_mut(&m.guild_id.unwrap()) {
         let mut queue = queue_lock.lock().await;
         let mut maybe_index = None;
@@ -89,7 +89,7 @@ pub fn remove(
 }
 
 async fn insert_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Result<()> {
-    let mut vcs = s.vcs.write().await.clone();
+    let mut vcs = s.vcs.lock().await.clone();
     if let Some(queue_lock) = vcs.get_mut(&m.guild_id.unwrap()) {
         let mut queue = queue_lock.lock().await;
 
@@ -146,7 +146,7 @@ pub fn insert(
 }
 
 async fn playnext_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Result<()> {
-    let mut vcs = s.vcs.write().await.clone();
+    let mut vcs = s.vcs.lock().await.clone();
     if let Some(queue_lock) = vcs.get_mut(&m.guild_id.unwrap()) {
         let mut queue = queue_lock.lock().await;
 

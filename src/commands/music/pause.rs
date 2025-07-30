@@ -5,7 +5,7 @@ use twilight_model::gateway::payload::incoming::MessageCreate;
 use crate::{parser::CommandWithData, State};
 
 async fn unpause_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
-    let lock = s.vcs.read().await.clone();
+    let lock = s.vcs.lock().await.clone();
     if let Some(queue_lock) = lock.get(&m.guild_id.unwrap()) {
         let queue = queue_lock.lock().await;
         queue.unpause()?;
@@ -23,7 +23,7 @@ pub fn unpause(
 }
 
 async fn pause_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
-    let vcs = s.vcs.read().await.clone();
+    let vcs = s.vcs.lock().await.clone();
     if let Some(queue_lock) = vcs.get(&m.guild_id.unwrap()) {
         let queue = queue_lock.lock().await;
         queue.pause()?;

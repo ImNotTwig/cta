@@ -18,7 +18,7 @@ async fn join_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::R
         .unwrap();
 
     s.songbird.join(m.guild_id.unwrap(), vc).await?;
-    let mut lock = s.vcs.write().await;
+    let mut lock = s.vcs.lock().await;
     if lock.get(&m.guild_id.unwrap()).is_none() {
         lock.insert(
             m.guild_id.unwrap(),
@@ -58,7 +58,7 @@ async fn leave_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::
 
             call.leave().await?;
 
-            let mut lock = s.vcs.write().await;
+            let mut lock = s.vcs.lock().await;
             lock.remove(&m.guild_id.unwrap()).unwrap();
 
             if channel == vc.into() {

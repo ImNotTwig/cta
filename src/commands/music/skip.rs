@@ -5,7 +5,7 @@ use twilight_model::gateway::payload::incoming::MessageCreate;
 use crate::{parser::CommandWithData, State};
 
 async fn next_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
-    let mut lock = s.vcs.write().await.clone();
+    let mut lock = s.vcs.lock().await.clone();
 
     if let Some(queue_lock) = lock.get_mut(&m.guild_id.unwrap()) {
         let mut queue = queue_lock.lock().await;
@@ -32,7 +32,7 @@ pub fn next(
 }
 
 async fn prev_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
-    let mut lock = s.vcs.write().await.clone();
+    let mut lock = s.vcs.lock().await.clone();
 
     if let Some(queue_lock) = lock.get_mut(&m.guild_id.unwrap()) {
         let mut queue = queue_lock.lock().await;

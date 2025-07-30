@@ -7,7 +7,7 @@ use std::{collections::HashMap, env, sync::Arc};
 use reqwest::Client;
 use songbird::{shards::TwilightMap, Songbird};
 use state::{Handler, State, StateRef};
-use tokio::sync::RwLock;
+use tokio::sync::Mutex;
 use twilight_cache_inmemory::DefaultInMemoryCache;
 use twilight_gateway::{EventTypeFlags, Intents, Shard, ShardId, StreamExt};
 use twilight_http::Client as HttpClient;
@@ -48,8 +48,8 @@ async fn main() -> anyhow::Result<()> {
         commands::rootcmd(),
         http,
         songbird,
-        RwLock::new(HashMap::new()),
-        RwLock::new(HashMap::new()),
+        Mutex::new(HashMap::new()),
+        Mutex::new(HashMap::new()),
         Client::new(),
         cache,
     ));

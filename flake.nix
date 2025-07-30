@@ -20,7 +20,6 @@
     craneLib = (crane.mkLib pkgs).overrideToolchain toolchain;
 
     moldDevShell = craneLib.devShell.override {
-      # For example, use the mold linker
       mkShell = pkgs.mkShell.override {
         stdenv = pkgs.stdenvAdapters.useMoldLinker pkgs.stdenv;
       };
