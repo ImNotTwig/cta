@@ -152,17 +152,13 @@ impl Queue<'static> {
     }
 
     pub async fn push(&mut self, state: State, url: String) -> anyhow::Result<AuxMetadata> {
-        let mut src = YoutubeDl::new(state.client.clone(), url.clone());
-        let metadata = match src.aux_metadata().await {
-            Ok(meta) => meta,
-            Err(_) => {
-                src = YoutubeDl::new_search(state.client.clone(), url.clone());
-                src.aux_metadata().await?
-            }
-        };
+        let mut search = YoutubeDl::new_search(state.client.clone(), url.clone());
+        let res = search.search(Some(1)).await?.collect::<Vec<_>>();
+        let metadata = &res[0];
+        let url = metadata.source_url.clone().unwrap();
 
-        self.songs.push(src);
-        Ok(metadata)
+        self.songs.push(YoutubeDl::new(state.client.clone(), url));
+        Ok(metadata.clone())
     }
 
     pub async fn goto(

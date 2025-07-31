@@ -12,7 +12,12 @@ async fn play_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Re
     let mut url = None;
     if let Some(args) = c.arguments {
         if !args.is_empty() {
-            url = args[0].clone().string();
+            url = Some(
+                args.iter()
+                    .map(|x| x.string().unwrap())
+                    .collect::<Vec<_>>()
+                    .join(" "),
+            );
         }
     }
 

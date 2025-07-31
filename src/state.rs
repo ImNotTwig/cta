@@ -1,8 +1,8 @@
-use std::{collections::HashMap, str::pattern::Pattern, sync::Arc};
+use std::{collections::HashMap, str::pattern::Pattern, sync::Arc, time::Duration};
 
 use reqwest::Client;
 use songbird::Songbird;
-use tokio::sync::Mutex;
+use tokio::{sync::Mutex, time::sleep};
 use twilight_cache_inmemory::InMemoryCache;
 use twilight_gateway::Event;
 use twilight_http::Client as HttpClient;
@@ -87,7 +87,6 @@ impl Handler for State {
         let configs = self.server_configs.lock().await.clone();
         for (guild, config) in configs.iter() {
             let data = bincode::serde::encode_to_vec(config, bincode::config::standard())?;
-            println!("{} : {:?}", guild, String::from_utf8(data)?);
         }
         Ok(())
     }
@@ -118,6 +117,7 @@ impl Handler for State {
 
     async fn check_done_vcs(self) -> anyhow::Result<()> {
         loop {
+            sleep(Duration::new(1, 0)).await;
             let mut guilds = vec![];
             let queues = self.vcs.lock().await.clone();
             for i in queues.iter() {

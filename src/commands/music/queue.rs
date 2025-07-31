@@ -96,7 +96,13 @@ async fn insert_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::
         let mut url = None;
         if let Some(ref args) = c.arguments {
             if args.len() > 1 {
-                url = args[1].clone().string();
+                url = Some({
+                    let mut iter = args.iter();
+                    iter.next();
+                    iter.map(|x| x.string().unwrap())
+                        .collect::<Vec<_>>()
+                        .join(" ")
+                });
             }
         };
 
@@ -107,7 +113,15 @@ async fn insert_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::
             }
         };
 
-        let src = url.clone().map(|u| YoutubeDl::new(s.client.clone(), u));
+        let client = s.client.clone();
+        let src = url.clone().map(async |u| {
+            let mut search = YoutubeDl::new_search(client.clone(), u);
+            let res = search.search(Some(1)).await.unwrap().collect::<Vec<_>>();
+            let metadata = &res[0];
+            let url = metadata.source_url.clone().unwrap();
+
+            return YoutubeDl::new(client.clone(), url.clone());
+        });
 
         let mut content = format!(
             "You can't insert something at nothing. Perhaps you meant `insert {} {}`",
@@ -118,7 +132,7 @@ async fn insert_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::
             content = if index == 0 {
                 String::from("There is no 0th position.")
             } else if url.is_some() {
-                let s = src.unwrap();
+                let s = src.unwrap().await;
                 let song = Queue::format_song(s.clone()).await;
                 queue.insert(s, index as usize - 1);
                 format!("Inserted: '{song}' at {index} in the queue")
@@ -154,13 +168,27 @@ async fn playnext_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow
         if let Some(ref args) = c.arguments {
             if !args.is_empty() {
                 url = args[0].clone().string();
+                url = Some(
+                    args.iter()
+                        .map(|x| x.string().unwrap())
+                        .collect::<Vec<_>>()
+                        .join(" "),
+                );
             }
         };
 
-        let src = url.clone().map(|u| YoutubeDl::new(s.client.clone(), u));
+        let client = s.client.clone();
+        let src = url.clone().map(async |u| {
+            let mut search = YoutubeDl::new_search(client.clone(), u);
+            let res = search.search(Some(1)).await.unwrap().collect::<Vec<_>>();
+            let metadata = &res[0];
+            let url = metadata.source_url.clone().unwrap();
+
+            return YoutubeDl::new(client.clone(), url.clone());
+        });
 
         let content = if url.is_some() {
-            let s = src.unwrap();
+            let s = src.unwrap().await;
             let song = Queue::format_song(s.clone()).await;
             let pos = queue.pos();
             queue.insert(s, pos + 1);
