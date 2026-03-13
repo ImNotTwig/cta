@@ -37,8 +37,8 @@ async fn play_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Re
 
             let content = format!(
                 "Added: '{} - {}' to Queue",
-                meta.artist.unwrap(),
-                meta.title.unwrap(),
+                meta.artist.unwrap_or_else(|| String::from("UNKNOWN")),
+                meta.title.unwrap_or_else(|| String::from("UNKNOWN")),
             );
 
             s.http
@@ -46,6 +46,7 @@ async fn play_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Re
                 .content(&content)
                 .await?;
         }
+        drop(queue);
     } else {
         lock.insert(
             guild_id,
@@ -55,7 +56,9 @@ async fn play_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Re
         let mut queue = queue_lock.lock().await;
         _ = queue.push(Arc::clone(&s), url.unwrap()).await?;
         queue.play(Arc::clone(&s), guild_id).await?;
-    };
+        drop(queue);
+    }
+    drop(lock);
 
     Ok(())
 }
@@ -64,5 +67,5 @@ pub fn play(
     m: MessageCreate,
     c: CommandWithData,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>> {
-    return (move |sc, mc, cc| Box::pin(play_impl(sc, mc, cc)))(s, m, c);
+    Box::pin(play_impl(s, m, c))
 }

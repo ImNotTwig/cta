@@ -33,6 +33,7 @@
         pkgs.yt-dlp
         pkgs.libopus
         pkgs.openssl
+        pkgs.ffmpeg
       ];
     };
     packages."x86_64-linux" = {

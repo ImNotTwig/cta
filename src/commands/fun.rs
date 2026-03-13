@@ -1,9 +1,6 @@
-use std::{
-    future::Future,
-    pin::Pin,
-    random::{DefaultRandomSource, Random},
-};
+use std::{future::Future, pin::Pin};
 
+use nanorand::Rng;
 use twilight_model::{
     channel::message::AllowedMentions, gateway::payload::incoming::MessageCreate,
 };
@@ -20,7 +17,8 @@ async fn jump_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Re
 
     if amount <= 10 {
         for _ in 0..amount {
-            let res = bool::random(&mut DefaultRandomSource);
+            let mut rng = nanorand::WyRand::new();
+            let res: bool = rng.generate();
             let content = if res {
                 "YOU MADE THE JUMP!!! YOURE SO AWESOME. HERE'S THE BEEF."
             } else {

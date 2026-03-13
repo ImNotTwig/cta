@@ -1,4 +1,4 @@
-use std::{collections::HashMap, str::pattern::Pattern, sync::Arc};
+use std::{collections::HashMap, num::NonZeroU64, str::pattern::Pattern, sync::Arc};
 
 use reqwest::Client;
 use songbird::Songbird;
@@ -42,12 +42,13 @@ pub type State = Arc<StateRef<'static>>;
 
 async fn get_empty_vcs(state: State) -> Vec<Id<GuildMarker>> {
     let mut guilds = vec![];
-    for i in state.vcs.lock().await.clone().iter() {
+    for i in state.vcs.lock().await.iter() {
         if let Some(call_lock) = state.songbird.get(*i.0) {
-            if let Some(vc) = call_lock.lock().await.current_channel() {
+            let current_channel = call_lock.lock().await.current_channel();
+            if let Some(vc) = current_channel {
                 let member_count = state
                     .cache
-                    .voice_channel_states(vc.0.into())
+                    .voice_channel_states(Id::from(NonZeroU64::new(vc.get()).unwrap()))
                     .map(|voice_states| {
                         let mut users = voice_states
                             .map(|v| state.cache.user(v.user_id()))
@@ -67,12 +68,21 @@ async fn get_empty_vcs(state: State) -> Vec<Id<GuildMarker>> {
     guilds
 }
 
+pub async fn leave_vc(state: State, guild: Id<GuildMarker>) {
+    state.songbird.get(guild).unwrap().lock().await.stop();
+
+    state.songbird.leave(guild).await.unwrap();
+    state.songbird.remove(guild).await.unwrap();
+
+    state.vcs.lock().await.remove(&guild).unwrap();
+}
+
 impl Handler for State {
     async fn generate_configs(self) -> anyhow::Result<()> {
         let guilds = self.http.current_user_guilds().await?.model().await?;
         let configs = self.server_configs.lock().await.clone();
         for guild in guilds {
-            if configs.get(&guild.id).is_none() {
+            if !configs.contains_key(&guild.id) {
                 _ = self
                     .server_configs
                     .lock()
@@ -85,7 +95,7 @@ impl Handler for State {
 
     async fn write_configs_to_file(&self) -> anyhow::Result<()> {
         let configs = self.server_configs.lock().await.clone();
-        for (guild, config) in configs.iter() {
+        for (guild, config) in &configs {
             let data = bincode::serde::encode_to_vec(config, bincode::config::standard())?;
             println!("{} : {:?}", guild, String::from_utf8(data)?);
         }
@@ -100,26 +110,25 @@ impl Handler for State {
         loop {
             let guilds = get_empty_vcs(Arc::clone(&self)).await;
             for guild in guilds {
-                tokio::spawn((async move |guild, state| {
+                let remove_guild = async move |guild, state| {
                     tokio::time::sleep(std::time::Duration::SECOND * 60).await;
                     let guilds = get_empty_vcs(Arc::clone(&state)).await;
-                    let this_guild: Vec<_> = guilds.iter().filter(|x| **x == guild).collect();
-
-                    if !this_guild.is_empty() {
-                        state.songbird.leave(guild).await.unwrap();
-                        state.songbird.remove(guild).await.unwrap();
-                        state.vcs.lock().await.remove(&guild).unwrap();
+                    if !guilds.contains(&guild) {
+                        return;
                     }
-                })(guild.clone(), Arc::clone(&self)))
-                .await?;
+                    leave_vc(state, guild).await;
+                };
+                tokio::spawn(remove_guild(guild, Arc::clone(&self))).await?;
             }
         }
     }
 
     async fn check_done_vcs(self) -> anyhow::Result<()> {
         loop {
+            tokio::time::sleep(std::time::Duration::SECOND * 60).await;
             let mut guilds = vec![];
-            let queues = self.vcs.lock().await.clone();
+            let queues = self.vcs.lock().await;
+
             for i in queues.iter() {
                 let vc = i.1.lock().await;
                 if let Ok(over) = vc.current_track_over().await {
@@ -130,13 +139,20 @@ impl Handler for State {
                     guilds.push(*i.0);
                 }
             }
+
             for i in guilds {
-                let mut queue = queues.get(&i).unwrap().lock().await;
-                let pos = queue.pos();
-                if pos < queue.len() - 1 {
-                    queue.goto(Arc::clone(&self), i, pos + 1).await?;
+                if let Some(queue_lock) = queues.get(&i) {
+                    let mut queue = (*queue_lock).lock().await;
+                    let pos = queue.pos();
+                    if pos < queue.len() - 1 {
+                        queue.goto(Arc::clone(&self), i, pos + 1).await?;
+                    }
+
+                    drop(queue);
                 }
             }
+
+            drop(queues);
         }
     }
 
@@ -148,7 +164,7 @@ impl Handler for State {
             //TODO: unhardcode the prefix
             Event::MessageCreate(msg) => {
                 let mut txt_cmd = TextCommand::new(&msg.content);
-                if txt_cmd.clone().collect::<Vec<String>>().is_empty() {
+                if txt_cmd.clone().next().is_none() {
                     return Ok(());
                 }
                 let configs = self.server_configs.lock().await.clone();
@@ -161,9 +177,15 @@ impl Handler for State {
                                 _ = txt_cmd.next();
                                 let command_with_data = CommandWithData::new(txt_cmd, *subcommand)?;
                                 _ = tokio::spawn(async move {
-                                    (func)(Arc::clone(&self), *msg.clone(), command_with_data)
-                                        .await
-                                        .unwrap();
+                                    let res =
+                                        (func)(Arc::clone(&self), *msg.clone(), command_with_data)
+                                            .await;
+                                    if res.is_err() {
+                                        _ = self.http
+                                            .create_message(msg.channel_id)
+                                            .content("Can't play whatever the fuck you just tried to add.")
+                                            .await;
+                                    }
                                 });
                             }
                         }
@@ -204,7 +226,7 @@ impl StateRef<'static> {
         client: Client,
         cache: InMemoryCache,
     ) -> Self {
-        StateRef {
+        Self {
             root_cmd,
             http,
             songbird,

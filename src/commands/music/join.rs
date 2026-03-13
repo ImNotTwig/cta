@@ -5,7 +5,7 @@ use twilight_model::{
     channel::message::AllowedMentions, gateway::payload::incoming::MessageCreate,
 };
 
-use crate::{music::Queue, parser::CommandWithData, State};
+use crate::{music::Queue, parser::CommandWithData, state, State};
 
 async fn join_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
     let vc = s
@@ -25,11 +25,12 @@ async fn join_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::R
             Arc::new(Mutex::new(Queue::new(None, None, Some(m.channel_id)))),
         );
     }
+    drop(lock);
 
     s.http
         .create_message(m.channel_id)
         .allowed_mentions(Some(&AllowedMentions::default()))
-        .content(&format!("Joined: <#{}>", vc))
+        .content(&format!("Joined: <#{vc}>"))
         .reply(m.id)
         .await?;
     Ok(())
@@ -39,7 +40,7 @@ pub fn join(
     m: MessageCreate,
     c: CommandWithData,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>> {
-    return (move |sc, mc, cc| Box::pin(join_impl(sc, mc, cc)))(s, m, c);
+    Box::pin(join_impl(s, m, c))
 }
 
 async fn leave_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::Result<()> {
@@ -57,22 +58,22 @@ async fn leave_impl(s: State, m: MessageCreate, _c: CommandWithData) -> anyhow::
                 .unwrap();
 
             call.leave().await?;
+            drop(call);
 
-            let mut lock = s.vcs.lock().await;
-            lock.remove(&m.guild_id.unwrap()).unwrap();
+            state::leave_vc(Arc::clone(&s), m.guild_id.unwrap()).await;
 
             if channel == vc.into() {
                 s.http
                     .create_message(m.channel_id)
                     .allowed_mentions(Some(&AllowedMentions::default()))
-                    .content(&format!("Left: <#{}>, and cleared the queue.", vc))
+                    .content(&format!("Left: <#{vc}>, and cleared the queue."))
                     .reply(m.id)
                     .await?;
             } else {
                 s.http
                     .create_message(m.channel_id)
                     .allowed_mentions(Some(&AllowedMentions::default()))
-                    .content(&format!("You are not in <#{}>. FUCK YOU!", vc))
+                    .content(&format!("You are not in <#{vc}>. FUCK YOU!"))
                     .reply(m.id)
                     .await?;
             }
@@ -86,5 +87,5 @@ pub fn leave(
     m: MessageCreate,
     c: CommandWithData,
 ) -> Pin<Box<dyn Future<Output = anyhow::Result<()>> + Send + 'static>> {
-    return (move |sc, mc, cc| Box::pin(leave_impl(sc, mc, cc)))(s, m, c);
+    Box::pin(leave_impl(s, m, c))
 }

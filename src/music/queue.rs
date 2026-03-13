@@ -73,7 +73,7 @@ impl Queue<'static> {
         }
 
         let mut results = set.join_all().await;
-        results.sort_unstable_by(|x, y| x.0.cmp(&y.0));
+        results.sort_unstable_by_key(|x| x.0);
         results.iter().map(|x| x.clone().1).collect()
     }
 
@@ -109,6 +109,8 @@ impl Queue<'static> {
 
     pub fn unpause(&self) -> anyhow::Result<()> {
         if let Some(track) = &self.current_track {
+            let t = track.make_playable();
+            t.result()?;
             track.play()?;
         }
         Ok(())
@@ -140,10 +142,13 @@ impl Queue<'static> {
         Ok(())
     }
 
-    pub fn insert(&mut self, song: YoutubeDl<'static>, index: usize) {
+    pub fn insert(&mut self, mut song: YoutubeDl<'static>, index: usize) {
         if index < self.pos {
             self.pos += 1;
         }
+
+        song = song.user_args(vec!["--cookies-from-browser".into(), "firefox".into()]);
+
         if index >= self.songs.len() {
             self.songs.push(song);
         } else {
@@ -152,13 +157,14 @@ impl Queue<'static> {
     }
 
     pub async fn push(&mut self, state: State, url: String) -> anyhow::Result<AuxMetadata> {
-        let mut src = YoutubeDl::new(state.client.clone(), url.clone());
-        let metadata = match src.aux_metadata().await {
-            Ok(meta) => meta,
-            Err(_) => {
-                src = YoutubeDl::new_search(state.client.clone(), url.clone());
-                src.aux_metadata().await?
-            }
+        let mut src = YoutubeDl::new(state.client.clone(), url.clone())
+            .user_args(vec!["--cookies-from-browser".into(), "firefox".into()]);
+        let metadata = if let Ok(meta) = src.aux_metadata().await {
+            meta
+        } else {
+            src = YoutubeDl::new_search(state.client.clone(), url.clone())
+                .user_args(vec!["--cookies-from-browser".into(), "firefox".into()]);
+            src.aux_metadata().await?
         };
 
         self.songs.push(src);

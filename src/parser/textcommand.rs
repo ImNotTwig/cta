@@ -4,7 +4,7 @@ pub struct TextCommand<'a> {
     ptr: usize,
 }
 impl<'a> TextCommand<'a> {
-    pub fn new(message: &str) -> TextCommand {
+    pub fn new(message: &str) -> TextCommand<'_> {
         TextCommand {
             words: message.split_whitespace().collect(),
             ptr: 0,
