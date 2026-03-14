@@ -3,8 +3,8 @@ use std::{collections::HashMap, time::Duration};
 use serde::{Deserialize, Serialize};
 
 use twilight_model::id::{
-    marker::{ChannelMarker, EmojiMarker, MessageMarker, RoleMarker, UserMarker},
     Id,
+    marker::{ChannelMarker, EmojiMarker, MessageMarker, RoleMarker, UserMarker},
 };
 
 type OptionId<T> = Option<Id<T>>;

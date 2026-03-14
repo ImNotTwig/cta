@@ -4,7 +4,7 @@ use twilight_model::{
     channel::message::AllowedMentions, gateway::payload::incoming::MessageCreate,
 };
 
-use crate::{parser::CommandWithData, state::Handler, State};
+use crate::{State, parser::CommandWithData, state::Handler};
 
 async fn prefix_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Result<()> {
     let mut maybe_pfx = None;

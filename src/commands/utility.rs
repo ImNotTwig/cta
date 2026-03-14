@@ -4,7 +4,7 @@ use twilight_model::{
     channel::message::AllowedMentions, gateway::payload::incoming::MessageCreate,
 };
 
-use crate::{parser::CommandWithData, State};
+use crate::{State, parser::CommandWithData};
 
 async fn ping_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Result<()> {
     let current_time = std::time::SystemTime::now()

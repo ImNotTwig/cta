@@ -254,9 +254,9 @@ dependencies = [
 
 [[package]]
 name = "brotli-decompressor"
-version = "4.0.2"
+version = "5.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "74fa05ad7d803d413eb8380983b092cbbaf9a85f151b871360e7b00cd7060b37"
+checksum = "874bb8112abecc98cbd6d81ea4fa7e94fb9449648c93cc89aa40c81c24d7de03"
 dependencies = [
  "alloc-no-stdlib",
  "alloc-stdlib",
@@ -521,11 +521,16 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "bincode",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
  "nanorand",
  "percent-encoding",
  "reqwest 0.12.15",
+ "rustls",
  "rustls-webpki 0.102.8",
  "serde",
+ "serde_json",
  "serenity",
  "songbird",
  "symphonia",
@@ -533,9 +538,10 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "twilight-cache-inmemory",
- "twilight-gateway",
+ "twilight-gateway 0.17.1",
  "twilight-http",
- "twilight-model",
+ "twilight-lavalink",
+ "twilight-model 0.17.1",
  "twilight-standby",
 ]
 
@@ -643,6 +649,19 @@ dependencies = [
  "darling_core 0.20.11",
  "quote",
  "syn 2.0.90",
+]
+
+[[package]]
+name = "dashmap"
+version = "5.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "978747c1d849a7d2ee5e8adc0159961c48fb7e5db2f06af6723b80123bb53856"
+dependencies = [
+ "cfg-if",
+ "hashbrown 0.14.5",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core 0.9.12",
 ]
 
 [[package]]
@@ -890,7 +909,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -944,7 +963,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "843fba2746e448b37e26a819579957415c8cef339bf08564fe8b7ddbd959573c"
 dependencies = [
  "crc32fast",
- "libz-sys",
  "miniz_oxide",
 ]
 
@@ -1218,6 +1236,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf151400ff0baff5465007dd2f3e717f3fe502074ca563069ce3a6629d07b289"
 
 [[package]]
+name = "hashbrown"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "841d1cc9bed7f9236f321df977030373f4a4163ae1a7dbfe1a51a2c1a51d9100"
+
+[[package]]
 name = "hashmap_derive"
 version = "0.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1434,6 +1458,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d71d3574edd2771538b901e6549113b4006ece66150fb69c0fb6d9a2adae946"
 
 [[package]]
+name = "httpdate"
+version = "1.0.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
+
+[[package]]
 name = "hyper"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1447,6 +1477,7 @@ dependencies = [
  "http",
  "http-body",
  "httparse",
+ "httpdate",
  "itoa",
  "pin-project-lite",
  "pin-utils",
@@ -1457,21 +1488,20 @@ dependencies = [
 
 [[package]]
 name = "hyper-rustls"
-version = "0.27.5"
+version = "0.27.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2d191583f3da1305256f22463b9bb0471acad48a4e534a5218b9963e9c1f59b2"
+checksum = "e3c93eb611681b207e1fe55d5a71ecf91572ec8a6705cdb6857f7d8d5242cf58"
 dependencies = [
- "futures-util",
  "http",
  "hyper",
  "hyper-util",
  "rustls",
  "rustls-pki-types",
- "rustls-platform-verifier 0.5.0",
+ "rustls-platform-verifier",
  "tokio",
  "tokio-rustls",
  "tower-service",
- "webpki-roots",
+ "webpki-roots 1.0.6",
 ]
 
 [[package]]
@@ -1976,17 +2006,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "477d39395a82293e079313c288f313bcbb62501ae4c31588e471344eea1a77da"
 dependencies = [
  "rand 0.9.0",
-]
-
-[[package]]
-name = "libz-sys"
-version = "1.1.20"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d2d16453e800a8cf6dd2fc3eb4bc99b786a9b90c663b8559a5b1a041bf89e472"
-dependencies = [
- "cc",
- "pkg-config",
- "vcpkg",
 ]
 
 [[package]]
@@ -2939,7 +2958,7 @@ dependencies = [
  "wasm-bindgen-futures",
  "wasm-streams 0.4.2",
  "web-sys",
- "webpki-roots",
+ "webpki-roots 0.26.8",
  "windows-registry",
 ]
 
@@ -2967,7 +2986,7 @@ dependencies = [
  "quinn",
  "rustls",
  "rustls-pki-types",
- "rustls-platform-verifier 0.6.2",
+ "rustls-platform-verifier",
  "serde",
  "serde_json",
  "sync_wrapper",
@@ -3072,7 +3091,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3122,27 +3141,6 @@ dependencies = [
 
 [[package]]
 name = "rustls-platform-verifier"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e012c45844a1790332c9386ed4ca3a06def221092eda277e6f079728f8ea99da"
-dependencies = [
- "core-foundation 0.10.0",
- "core-foundation-sys",
- "jni",
- "log",
- "once_cell",
- "rustls",
- "rustls-native-certs",
- "rustls-platform-verifier-android",
- "rustls-webpki 0.102.8",
- "security-framework 3.7.0",
- "security-framework-sys",
- "webpki-root-certs 0.26.8",
- "windows-sys 0.52.0",
-]
-
-[[package]]
-name = "rustls-platform-verifier"
 version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1d99feebc72bae7ab76ba994bb5e121b8d83d910ca40b36e0921f53becc41784"
@@ -3158,8 +3156,8 @@ dependencies = [
  "rustls-webpki 0.103.3",
  "security-framework 3.7.0",
  "security-framework-sys",
- "webpki-root-certs 1.0.6",
- "windows-sys 0.52.0",
+ "webpki-root-certs",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3451,7 +3449,7 @@ dependencies = [
  "bool_to_bitflags",
  "bytes",
  "chrono",
- "dashmap",
+ "dashmap 6.1.0",
  "extract_map",
  "flate2",
  "foldhash",
@@ -3634,7 +3632,7 @@ dependencies = [
  "bytes",
  "chacha20poly1305",
  "crypto-common",
- "dashmap",
+ "dashmap 6.1.0",
  "davey",
  "derivative",
  "discortp",
@@ -3663,11 +3661,11 @@ dependencies = [
  "tokio",
  "tokio-tungstenite 0.26.2",
  "tokio-util",
- "tokio-websockets",
+ "tokio-websockets 0.11.2",
  "tracing",
  "tracing-futures",
- "twilight-gateway",
- "twilight-model",
+ "twilight-gateway 0.16.0",
+ "twilight-model 0.16.0",
  "typenum",
  "url",
  "uuid",
@@ -4057,7 +4055,7 @@ dependencies = [
  "getrandom 0.3.2",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4260,7 +4258,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tungstenite 0.26.2",
- "webpki-roots",
+ "webpki-roots 0.26.8",
 ]
 
 [[package]]
@@ -4276,7 +4274,7 @@ dependencies = [
  "tokio",
  "tokio-rustls",
  "tungstenite 0.28.0",
- "webpki-roots",
+ "webpki-roots 0.26.8",
 ]
 
 [[package]]
@@ -4289,6 +4287,7 @@ dependencies = [
  "futures-core",
  "futures-sink",
  "pin-project-lite",
+ "slab",
  "tokio",
 ]
 
@@ -4308,10 +4307,33 @@ dependencies = [
  "ring",
  "rustls-native-certs",
  "rustls-pki-types",
- "rustls-platform-verifier 0.5.0",
  "sha1_smol",
  "simdutf8",
  "tokio",
+ "tokio-rustls",
+ "tokio-util",
+]
+
+[[package]]
+name = "tokio-websockets"
+version = "0.13.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8b6aa6c8b5a31e06fd3760eb5c1b8d9072e30731f0467ee3795617fe768e7449"
+dependencies = [
+ "base64",
+ "bytes",
+ "fastrand",
+ "futures-core",
+ "futures-sink",
+ "http",
+ "httparse",
+ "openssl",
+ "rustls-pki-types",
+ "rustls-platform-verifier",
+ "sha1_smol",
+ "simdutf8",
+ "tokio",
+ "tokio-native-tls",
  "tokio-rustls",
  "tokio-util",
 ]
@@ -4491,14 +4513,13 @@ dependencies = [
 
 [[package]]
 name = "twilight-cache-inmemory"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "bc9de5f02fa89a48d3fa989811d67a3f3cc3179a46ce71089afa5412ff21fb41"
+version = "0.17.1"
+source = "git+https://github.com/twilight-rs/twilight/?rev=1e65bb41503870a8b1d6a6030f7630323a2f2b5c#1e65bb41503870a8b1d6a6030f7630323a2f2b5c"
 dependencies = [
  "bitflags 2.11.0",
- "dashmap",
+ "dashmap 5.5.3",
  "serde",
- "twilight-model",
+ "twilight-model 0.17.1",
 ]
 
 [[package]]
@@ -4509,17 +4530,35 @@ checksum = "863ef55467bcf6a2958162766fd0b72f33112e36971b37f9ec09b86d4fd0f7d1"
 dependencies = [
  "bitflags 2.11.0",
  "fastrand",
- "flate2",
  "futures-core",
  "futures-sink",
  "serde",
  "serde_json",
  "tokio",
- "tokio-websockets",
+ "tokio-websockets 0.11.2",
  "tracing",
- "twilight-gateway-queue",
+ "twilight-gateway-queue 0.16.0",
+ "twilight-model 0.16.0",
+]
+
+[[package]]
+name = "twilight-gateway"
+version = "0.17.1"
+source = "git+https://github.com/twilight-rs/twilight/?rev=1e65bb41503870a8b1d6a6030f7630323a2f2b5c#1e65bb41503870a8b1d6a6030f7630323a2f2b5c"
+dependencies = [
+ "bitflags 2.11.0",
+ "fastrand",
+ "futures-core",
+ "futures-sink",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-websockets 0.13.1",
+ "tracing",
+ "twilight-gateway-queue 0.17.0",
  "twilight-http",
- "twilight-model",
+ "twilight-model 0.17.1",
+ "zstd-safe",
 ]
 
 [[package]]
@@ -4533,10 +4572,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "twilight-gateway-queue"
+version = "0.17.0"
+source = "git+https://github.com/twilight-rs/twilight/?rev=1e65bb41503870a8b1d6a6030f7630323a2f2b5c#1e65bb41503870a8b1d6a6030f7630323a2f2b5c"
+dependencies = [
+ "tokio",
+ "tracing",
+]
+
+[[package]]
 name = "twilight-http"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "af9a2176638fd8bfeb867e7a2f644fee0db905eba6f7decfdcd75c8171109b74"
+version = "0.17.1"
+source = "git+https://github.com/twilight-rs/twilight/?rev=1e65bb41503870a8b1d6a6030f7630323a2f2b5c#1e65bb41503870a8b1d6a6030f7630323a2f2b5c"
 dependencies = [
  "brotli-decompressor",
  "fastrand",
@@ -4552,18 +4599,39 @@ dependencies = [
  "tokio",
  "tracing",
  "twilight-http-ratelimiting",
- "twilight-model",
+ "twilight-model 0.17.1",
  "twilight-validate",
 ]
 
 [[package]]
 name = "twilight-http-ratelimiting"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a36945d949920d6bb6aef30547e06ea645eefaa5575a14f56da608bf09d07ec8"
+version = "0.17.1"
+source = "git+https://github.com/twilight-rs/twilight/?rev=1e65bb41503870a8b1d6a6030f7630323a2f2b5c#1e65bb41503870a8b1d6a6030f7630323a2f2b5c"
 dependencies = [
+ "hashbrown 0.16.1",
  "tokio",
+ "tokio-util",
  "tracing",
+]
+
+[[package]]
+name = "twilight-lavalink"
+version = "0.16.0-rc.1"
+source = "git+https://github.com/twilight-rs/twilight/?rev=1e65bb41503870a8b1d6a6030f7630323a2f2b5c#1e65bb41503870a8b1d6a6030f7630323a2f2b5c"
+dependencies = [
+ "dashmap 5.5.3",
+ "futures-util",
+ "http",
+ "http-body-util",
+ "hyper",
+ "hyper-util",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tokio-websockets 0.13.1",
+ "tracing",
+ "twilight-model 0.17.1",
 ]
 
 [[package]]
@@ -4580,25 +4648,35 @@ dependencies = [
 ]
 
 [[package]]
-name = "twilight-standby"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "375267fde44a8d52a8bf01c60d0769d9d2a289d056f278da4e99186ae04c5903"
+name = "twilight-model"
+version = "0.17.1"
+source = "git+https://github.com/twilight-rs/twilight/?rev=1e65bb41503870a8b1d6a6030f7630323a2f2b5c#1e65bb41503870a8b1d6a6030f7630323a2f2b5c"
 dependencies = [
- "dashmap",
+ "bitflags 2.11.0",
+ "serde",
+ "serde-value",
+ "serde_repr",
+ "time",
+]
+
+[[package]]
+name = "twilight-standby"
+version = "0.17.0"
+source = "git+https://github.com/twilight-rs/twilight/?rev=1e65bb41503870a8b1d6a6030f7630323a2f2b5c#1e65bb41503870a8b1d6a6030f7630323a2f2b5c"
+dependencies = [
+ "dashmap 5.5.3",
  "futures-core",
  "tokio",
  "tracing",
- "twilight-model",
+ "twilight-model 0.17.1",
 ]
 
 [[package]]
 name = "twilight-validate"
-version = "0.16.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "49f8d106028ede53708526364b03318bbf846babe146e3ff9e39821a0ca25ff4"
+version = "0.17.0"
+source = "git+https://github.com/twilight-rs/twilight/?rev=1e65bb41503870a8b1d6a6030f7630323a2f2b5c#1e65bb41503870a8b1d6a6030f7630323a2f2b5c"
 dependencies = [
- "twilight-model",
+ "twilight-model 0.17.1",
 ]
 
 [[package]]
@@ -4891,15 +4969,6 @@ dependencies = [
 
 [[package]]
 name = "webpki-root-certs"
-version = "0.26.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "09aed61f5e8d2c18344b3faa33a4c837855fe56642757754775548fee21386c4"
-dependencies = [
- "rustls-pki-types",
-]
-
-[[package]]
-name = "webpki-root-certs"
 version = "1.0.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "804f18a4ac2676ffb4e8b5b5fa9ae38af06df08162314f96a68d2a363e21a8ca"
@@ -4912,6 +4981,15 @@ name = "webpki-roots"
 version = "0.26.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2210b291f7ea53617fbafcc4939f10914214ec15aace5ba62293a668f322c5c9"
+dependencies = [
+ "rustls-pki-types",
+]
+
+[[package]]
+name = "webpki-roots"
+version = "1.0.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "22cfaf3c063993ff62e73cb4311efde4db1efb31ab78a3e5c457939ad5cc0bed"
 dependencies = [
  "rustls-pki-types",
 ]

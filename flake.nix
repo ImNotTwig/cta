@@ -34,6 +34,7 @@
         pkgs.libopus
         pkgs.openssl
         pkgs.ffmpeg
+        pkgs.lavalink
       ];
     };
     packages."x86_64-linux" = {

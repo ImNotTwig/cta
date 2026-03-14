@@ -5,7 +5,7 @@ use twilight_model::{
     channel::message::AllowedMentions, gateway::payload::incoming::MessageCreate,
 };
 
-use crate::{parser::CommandWithData, State};
+use crate::{State, parser::CommandWithData};
 
 async fn jump_impl(s: State, m: MessageCreate, c: CommandWithData) -> anyhow::Result<()> {
     let mut amount = 1;
