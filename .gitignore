@@ -1,4 +1,5 @@
 .direnv
 /target
 .aider*
+lavalink/*
 application.yml
